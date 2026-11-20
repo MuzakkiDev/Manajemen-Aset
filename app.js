@@ -4,7 +4,7 @@ import { supabase } from "./supabase-config.js";
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-let currentUser = null; // { uid, email, nama_lengkap, role }
+let currentUser = null; // { uid, username_id, email, nama_lengkap, role }
 let allAssets = []; // Cache daftar aset dari PostgreSQL
 let selectedAsset = null; // Aset yang sedang dibuka di modal detail
 let mainScanner = null; // Instance html5-qrcode untuk menu Scan Cepat
@@ -139,7 +139,7 @@ function initThemeToggle() {
 }
 
 // ==========================================
-// SUPABASE AUTHENTICATION & RBAC
+// SUPABASE AUTHENTICATION & RBAC (ID LOGIN)
 // ==========================================
 async function handleUserSession(session) {
   if (!session || !session.user) {
@@ -172,8 +172,10 @@ async function handleUserSession(session) {
 
     currentUser = {
       uid: session.user.id,
+      username_id:
+        profile.username_id || session.user.email.split("@")[0].toUpperCase(),
       email: session.user.email,
-      nama_lengkap: profile.nama_lengkap || session.user.email,
+      nama_lengkap: profile.nama_lengkap || profile.username_id,
       role: profile.role || "Staff",
     };
 
@@ -196,29 +198,31 @@ async function handleUserSession(session) {
   }
 }
 
-// Pantau perubahan status login secara real-time
 supabase.auth.onAuthStateChange((_event, session) => {
   handleUserSession(session);
 });
 
 $("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const email = $("login-email").value.trim();
+  const userIdInput = $("login-id").value.trim().toLowerCase();
   const password = $("login-password").value;
   const errBox = $("login-error");
+
+  // Mapping ID Pengguna ke virtual email internal Supabase
+  const virtualEmail = `${userIdInput}@aset.local`;
 
   errBox.classList.add("hidden");
   showLoading("Sedang masuk...");
 
   try {
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: virtualEmail,
       password,
     });
     if (error) throw error;
     $("login-form").reset();
   } catch (error) {
-    errBox.textContent = "Email atau password salah, atau jaringan bermasalah.";
+    errBox.textContent = "ID Pengguna atau password salah.";
     errBox.classList.remove("hidden");
   } finally {
     hideLoading();
@@ -236,10 +240,11 @@ document.querySelectorAll(".btn-logout").forEach((btn) => {
 function setupUIByRole() {
   const isAdmin = currentUser.role === "Admin";
 
-  $("desktop-user-name").textContent = currentUser.nama_lengkap;
+  $("desktop-user-name").textContent =
+    `${currentUser.nama_lengkap} (${currentUser.username_id})`;
   $("desktop-user-role").textContent = currentUser.role;
   $("mobile-user-info").textContent =
-    `${currentUser.nama_lengkap} (${currentUser.role})`;
+    `${currentUser.username_id} • ${currentUser.role}`;
 
   document.querySelectorAll(".admin-only").forEach((el) => {
     if (isAdmin) {
@@ -720,7 +725,7 @@ $("aset-form").addEventListener("submit", async (e) => {
         pic_baru: payload.pic_penanggung_jawab,
         kondisi: payload.kondisi,
         keterangan: "Pembaruan data master aset oleh Admin",
-        petugas_nama: currentUser.nama_lengkap,
+        petugas_nama: `${currentUser.nama_lengkap} (${currentUser.username_id})`,
         petugas_uid: currentUser.uid,
       });
 
@@ -746,7 +751,7 @@ $("aset-form").addEventListener("submit", async (e) => {
         pic_baru: payload.pic_penanggung_jawab,
         kondisi: payload.kondisi,
         keterangan: "Registrasi aset baru",
-        petugas_nama: currentUser.nama_lengkap,
+        petugas_nama: `${currentUser.nama_lengkap} (${currentUser.username_id})`,
         petugas_uid: currentUser.uid,
       });
 
@@ -923,7 +928,7 @@ async function openDetailModal(aset) {
     specs.push(
       `<div><span class="text-slate-400">No. Seri / Mesin:</span> <strong>${escapeHTML(aset.no_seri_atau_mesin)}</strong></div>`,
     );
-  if (aset.plat_nomor)
+  if (aset.platNomor || aset.plat_nomor)
     specs.push(
       `<div><span class="text-slate-400">Plat Nomor:</span> <strong>${escapeHTML(aset.plat_nomor)}</strong></div>`,
     );
@@ -1046,7 +1051,7 @@ $("opname-form").addEventListener("submit", async (e) => {
       pic_baru: selectedAsset.pic_penanggung_jawab || "-",
       kondisi: kondisiBaru,
       keterangan: catatanAudit,
-      petugas_nama: currentUser.nama_lengkap,
+      petugas_nama: `${currentUser.nama_lengkap} (${currentUser.username_id})`,
       petugas_uid: currentUser.uid,
     });
 
