@@ -1,0 +1,1750 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Sistem Manajemen Aset Perusahaan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+      body {
+        -webkit-tap-highlight-color: transparent;
+      }
+      .safe-bottom {
+        padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
+      }
+      #qr-reader video {
+        border-radius: 0.75rem;
+        object-fit: cover;
+      }
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        #print-label-area,
+        #print-label-area * {
+          visibility: visible !important;
+        }
+        #print-label-area {
+          position: fixed;
+          inset: 0;
+          margin: auto;
+          width: 70mm;
+          height: fit-content;
+          padding: 12px;
+          border: 2px solid #000;
+          border-radius: 8px;
+          background: #fff;
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-100 text-slate-800 font-sans antialiased">
+    <!-- LOADING OVERLAY -->
+    <div
+      id="loadingOverlay"
+      class="hidden fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center"
+    >
+      <div
+        class="bg-white rounded-2xl px-6 py-5 shadow-xl flex items-center gap-4"
+      >
+        <div
+          class="w-7 h-7 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"
+        ></div>
+        <span id="loadingText" class="text-sm font-semibold text-slate-700"
+          >Memproses...</span
+        >
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div
+      id="toast"
+      class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[92%] px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white text-center"
+    ></div>
+
+    <!-- ==================== LOGIN VIEW ==================== -->
+    <section
+      id="loginView"
+      class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900"
+    >
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-7 md:p-9">
+        <div class="text-center mb-7">
+          <div
+            class="w-14 h-14 mx-auto rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-lg mb-3"
+          >
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <h1 class="text-xl font-bold text-slate-800">
+            Sistem Manajemen Aset
+          </h1>
+          <p class="text-xs text-slate-500 mt-1">
+            Masuk dengan akun Admin atau Staff Lapangan
+          </p>
+        </div>
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1"
+              >Username</label
+            >
+            <input
+              id="loginUser"
+              type="text"
+              required
+              autocomplete="username"
+              placeholder="admin / staff"
+              class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1"
+              >Password</label
+            >
+            <input
+              id="loginPass"
+              type="password"
+              required
+              autocomplete="current-password"
+              placeholder="••••••••"
+              class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-sm shadow-md transition"
+          >
+            <i class="fa-solid fa-right-to-bracket mr-2"></i>Masuk Aplikasi
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ==================== MAIN APP SHELL ==================== -->
+    <div id="appShell" class="hidden min-h-screen md:flex">
+      <!-- DESKTOP SIDEBAR (Hanya tampil di layar >= 768px) -->
+      <aside
+        class="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 bg-slate-900 text-slate-200 shadow-xl z-30"
+      >
+        <div
+          class="h-16 px-5 flex items-center gap-3 border-b border-slate-800"
+        >
+          <div
+            class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white"
+          >
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div>
+            <div class="font-bold text-sm text-white leading-tight">
+              Aset Perusahaan
+            </div>
+            <div class="text-[11px] text-slate-400">Desktop Workstation</div>
+          </div>
+        </div>
+
+        <nav class="flex-1 px-3 py-4 space-y-1">
+          <button
+            data-nav="dashboard"
+            onclick="navigate('dashboard')"
+            class="admin-only nav-desktop w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition"
+          >
+            <i class="fa-solid fa-chart-pie w-5 text-center"></i> Dashboard KPI
+          </button>
+          <button
+            data-nav="assets"
+            onclick="navigate('assets')"
+            class="nav-desktop w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition"
+          >
+            <i class="fa-solid fa-table-list w-5 text-center"></i> Daftar Aset
+          </button>
+          <button
+            data-nav="form"
+            onclick="openAddAssetForm()"
+            class="admin-only nav-desktop w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition"
+          >
+            <i class="fa-solid fa-plus-circle w-5 text-center"></i> Tambah Aset
+          </button>
+          <button
+            data-nav="scan"
+            onclick="navigate('scan')"
+            class="nav-desktop w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition"
+          >
+            <i class="fa-solid fa-qrcode w-5 text-center"></i> Scan QR & Opname
+          </button>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800">
+          <div class="flex items-center gap-3 mb-3">
+            <div
+              class="w-9 h-9 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-sm"
+              id="deskAvatar"
+            >
+              A
+            </div>
+            <div class="min-w-0">
+              <div
+                id="deskUserName"
+                class="text-sm font-semibold text-white truncate"
+              >
+                -
+              </div>
+              <div id="deskUserRole" class="text-xs text-blue-400 font-medium">
+                -
+              </div>
+            </div>
+          </div>
+          <button
+            onclick="doLogout()"
+            class="w-full py-2 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white text-xs font-semibold transition"
+          >
+            <i class="fa-solid fa-right-from-bracket mr-1.5"></i>Keluar
+          </button>
+        </div>
+      </aside>
+
+      <!-- CONTENT WRAPPER -->
+      <div class="flex-1 md:pl-64 flex flex-col min-h-screen">
+        <!-- MOBILE TOP HEADER (< 768px) -->
+        <header
+          class="md:hidden sticky top-0 z-20 bg-slate-900 text-white px-4 h-14 flex items-center justify-between shadow"
+        >
+          <div class="flex items-center gap-2.5">
+            <i class="fa-solid fa-boxes-stacked text-blue-400 text-lg"></i>
+            <div>
+              <div class="text-sm font-bold leading-none">Manajemen Aset</div>
+              <div id="mobUserLabel" class="text-[11px] text-slate-300 mt-0.5">
+                -
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              onclick="loadInitialData(true)"
+              class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-slate-200"
+              title="Refresh"
+            >
+              <i class="fa-solid fa-rotate"></i>
+            </button>
+            <button
+              onclick="doLogout()"
+              class="w-9 h-9 rounded-lg bg-red-600/90 flex items-center justify-center text-white"
+              title="Keluar"
+            >
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- DESKTOP TOP BAR (>= 768px) -->
+        <header
+          class="hidden md:flex sticky top-0 z-20 bg-white border-b border-slate-200 px-8 h-16 items-center justify-between"
+        >
+          <h2 id="desktopPageTitle" class="text-lg font-bold text-slate-800">
+            Dashboard
+          </h2>
+          <div class="flex items-center gap-3">
+            <button
+              onclick="loadInitialData(true)"
+              class="px-3.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-600"
+            >
+              <i class="fa-solid fa-rotate mr-1.5"></i>Sinkron Data
+            </button>
+            <button
+              onclick="exportFilteredCsv()"
+              class="admin-only px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+            >
+              <i class="fa-solid fa-file-csv mr-1.5"></i>Export CSV
+            </button>
+            <button
+              onclick="openAddAssetForm()"
+              class="admin-only px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm"
+            >
+              <i class="fa-solid fa-plus mr-1.5"></i>Tambah Aset
+            </button>
+          </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main
+          class="flex-1 p-4 md:p-8 safe-bottom md:pb-8 max-w-7xl w-full mx-auto"
+        >
+          <!-- 1. DASHBOARD VIEW (Admin Only) -->
+          <section id="view-dashboard" class="view-section hidden space-y-6">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+              <div
+                class="bg-white p-4 md:p-5 rounded-2xl shadow-xs border border-slate-200"
+              >
+                <div class="text-xs font-semibold text-slate-500">
+                  Total Aset
+                </div>
+                <div
+                  id="kpiTotal"
+                  class="text-2xl md:text-3xl font-bold text-slate-800 mt-1"
+                >
+                  0
+                </div>
+              </div>
+              <div
+                class="bg-white p-4 md:p-5 rounded-2xl shadow-xs border border-slate-200 col-span-2 lg:col-span-1"
+              >
+                <div class="text-xs font-semibold text-slate-500">
+                  Total Nilai Aset
+                </div>
+                <div
+                  id="kpiNilai"
+                  class="text-xl md:text-2xl font-bold text-blue-600 mt-1 truncate"
+                >
+                  Rp 0
+                </div>
+              </div>
+              <div
+                class="bg-white p-4 md:p-5 rounded-2xl shadow-xs border border-slate-200"
+              >
+                <div class="text-xs font-semibold text-emerald-600">
+                  Kondisi Baik
+                </div>
+                <div
+                  id="kpiBaik"
+                  class="text-2xl md:text-3xl font-bold text-emerald-600 mt-1"
+                >
+                  0
+                </div>
+              </div>
+              <div
+                class="bg-white p-4 md:p-5 rounded-2xl shadow-xs border border-slate-200"
+              >
+                <div class="text-xs font-semibold text-amber-600">
+                  Perlu Perhatian
+                </div>
+                <div
+                  id="kpiRusak"
+                  class="text-2xl md:text-3xl font-bold text-amber-600 mt-1"
+                >
+                  0
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5"
+            >
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-slate-800 text-sm md:text-base">
+                  <i
+                    class="fa-solid fa-clock-rotate-left text-blue-600 mr-2"
+                  ></i
+                  >Aktivitas Terbaru
+                </h3>
+                <button
+                  onclick="exportFilteredCsv()"
+                  class="md:hidden text-xs font-semibold text-emerald-600"
+                >
+                  <i class="fa-solid fa-download mr-1"></i>CSV
+                </button>
+              </div>
+              <div
+                id="dashboardLogs"
+                class="divide-y divide-slate-100 text-sm"
+              ></div>
+            </div>
+          </section>
+
+          <!-- 2. DAFTAR ASET VIEW (Desktop: Tabel | Mobile: Kartu) -->
+          <section id="view-assets" class="view-section hidden space-y-4">
+            <!-- Filter Bar -->
+            <div
+              class="bg-white p-4 rounded-2xl shadow-xs border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-3"
+            >
+              <div class="relative">
+                <i
+                  class="fa-solid fa-search absolute left-3.5 top-3 text-slate-400 text-xs"
+                ></i>
+                <input
+                  id="filterSearch"
+                  oninput="renderAssetList()"
+                  type="text"
+                  placeholder="Cari nama, QR, PIC..."
+                  class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <select
+                id="filterKategori"
+                onchange="renderAssetList()"
+                class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
+              ></select>
+              <select
+                id="filterLokasi"
+                onchange="renderAssetList()"
+                class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
+              ></select>
+              <select
+                id="filterKondisi"
+                onchange="renderAssetList()"
+                class="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white"
+              ></select>
+            </div>
+
+            <!-- DESKTOP TABLE VIEW (Hidden di Mobile) -->
+            <div
+              class="hidden md:block bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden"
+            >
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                  <thead
+                    class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500"
+                  >
+                    <tr>
+                      <th class="py-3.5 px-4">Aset</th>
+                      <th class="py-3.5 px-4">Kategori & Merk</th>
+                      <th class="py-3.5 px-4">Lokasi & PIC</th>
+                      <th class="py-3.5 px-4">Kondisi / Status</th>
+                      <th class="py-3.5 px-4 admin-only">Nilai</th>
+                      <th class="py-3.5 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    id="desktopAssetTable"
+                    class="divide-y divide-slate-100"
+                  ></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- MOBILE CARD LIST VIEW (Hidden di Desktop) -->
+            <div id="mobileAssetCards" class="md:hidden space-y-3"></div>
+          </section>
+
+          <!-- 3. SCAN QR CEPAT VIEW -->
+          <section
+            id="view-scan"
+            class="view-section hidden max-w-xl mx-auto space-y-4"
+          >
+            <div
+              class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 text-center space-y-4"
+            >
+              <div>
+                <h3 class="font-bold text-slate-800 text-base">Scan QR Aset</h3>
+                <p class="text-xs text-slate-500 mt-0.5">
+                  Arahkan kamera ke label QR untuk lihat detail & Stock Opname
+                </p>
+              </div>
+
+              <div
+                id="qr-reader"
+                class="w-full overflow-hidden rounded-xl bg-slate-900 min-h-[240px] flex items-center justify-center text-slate-400 text-xs"
+              >
+                Kamera belum aktif
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <button
+                  id="btnStartScan"
+                  onclick="startQrScanner('quick')"
+                  class="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm"
+                >
+                  <i class="fa-solid fa-camera mr-1.5"></i>Mulai Kamera
+                </button>
+                <button
+                  id="btnStopScan"
+                  onclick="stopQrScanner()"
+                  class="py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-sm"
+                >
+                  <i class="fa-solid fa-stop mr-1.5"></i>Stop
+                </button>
+              </div>
+
+              <!-- Fallback Scan dari Foto/Galeri (Solusi jika izin kamera diblokir/PC tanpa webcam) -->
+              <div class="pt-2 border-t border-slate-100 space-y-2.5">
+                <label
+                  class="block w-full py-2.5 rounded-xl border border-dashed border-blue-400 bg-blue-50 text-blue-700 text-xs font-semibold cursor-pointer hover:bg-blue-100"
+                >
+                  <i class="fa-solid fa-image mr-1.5"></i>Atau Scan QR dari Foto
+                  / Galeri
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    onchange="scanQrFromFile(event, 'quick')"
+                  />
+                </label>
+
+                <div class="flex gap-2">
+                  <input
+                    id="manualQrInput"
+                    type="text"
+                    placeholder="Ketik Kode QR manual (AST-...)"
+                    class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <button
+                    onclick="
+                      lookupQrCode(
+                        document.getElementById('manualQrInput').value,
+                      )
+                    "
+                    class="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold"
+                  >
+                    Cari
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4. FORM TAMBAH / EDIT ASET (Admin Only) -->
+          <section id="view-form" class="view-section hidden max-w-3xl mx-auto">
+            <div
+              class="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 md:p-7"
+            >
+              <div
+                class="flex items-center justify-between pb-4 mb-5 border-b border-slate-100"
+              >
+                <h3
+                  id="formTitle"
+                  class="font-bold text-slate-800 text-base md:text-lg"
+                >
+                  Tambah Aset Baru
+                </h3>
+                <button
+                  onclick="navigate('assets')"
+                  class="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                >
+                  Batal
+                </button>
+              </div>
+
+              <form id="assetForm" class="space-y-4">
+                <input type="hidden" id="fIdAset" />
+
+                <!-- Mode A: Scan QR untuk Form -->
+                <div
+                  class="p-3.5 rounded-xl bg-blue-50 border border-blue-100 space-y-2"
+                >
+                  <label class="block text-xs font-bold text-blue-900"
+                    >Kode QR (Kosongkan untuk Auto-Generate)</label
+                  >
+                  <div class="flex gap-2">
+                    <input
+                      id="fKodeQr"
+                      type="text"
+                      placeholder="AST-YYYYMMDD-XXXX (opsional)"
+                      class="flex-1 px-3.5 py-2.5 rounded-xl border border-blue-200 bg-white text-sm"
+                    />
+                    <button
+                      type="button"
+                      onclick="openFormQrScanner()"
+                      class="px-3.5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold whitespace-nowrap"
+                    >
+                      <i class="fa-solid fa-qrcode mr-1"></i>Scan QR
+                    </button>
+                  </div>
+                  <div
+                    id="form-qr-reader"
+                    class="hidden w-full rounded-xl overflow-hidden mt-2"
+                  ></div>
+                </div>
+
+                <!-- Grid 1 kolom di Mobile, 2 kolom di Desktop -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Nama Aset *</label
+                    >
+                    <input
+                      id="fNamaAset"
+                      type="text"
+                      required
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Kategori</label
+                    >
+                    <select
+                      id="fKategori"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    ></select>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Merk / Tipe</label
+                    >
+                    <input
+                      id="fMerkTipe"
+                      type="text"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Nomor Seri</label
+                    >
+                    <input
+                      id="fNomorSeri"
+                      type="text"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Tanggal Beli</label
+                    >
+                    <input
+                      id="fTanggalBeli"
+                      type="date"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Harga Perolehan (Rp)</label
+                    >
+                    <input
+                      id="fHarga"
+                      type="number"
+                      min="0"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Lokasi</label
+                    >
+                    <select
+                      id="fLokasi"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    ></select>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >PIC Penanggung Jawab</label
+                    >
+                    <input
+                      id="fPic"
+                      type="text"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Kondisi</label
+                    >
+                    <select
+                      id="fKondisi"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    ></select>
+                  </div>
+                  <div>
+                    <label
+                      class="block text-xs font-semibold text-slate-600 mb-1"
+                      >Status</label
+                    >
+                    <select
+                      id="fStatus"
+                      class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    ></select>
+                  </div>
+                </div>
+
+                <!-- Upload Foto & Dokumen (1 Folder Drive) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div
+                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50"
+                  >
+                    <label
+                      class="block text-xs font-semibold text-slate-700 mb-1.5"
+                      ><i class="fa-solid fa-camera mr-1"></i>Foto Aset
+                      (Otomatis Kompres)</label
+                    >
+                    <input
+                      id="fFoto"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      class="text-xs w-full"
+                    />
+                    <p id="fFotoInfo" class="text-[11px] text-slate-500 mt-1">
+                      Tersimpan ke folder Drive dengan prefix FOTO_
+                    </p>
+                  </div>
+                  <div
+                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50"
+                  >
+                    <label
+                      class="block text-xs font-semibold text-slate-700 mb-1.5"
+                      ><i class="fa-solid fa-file-pdf mr-1"></i>Dokumen
+                      (PDF/Gambar)</label
+                    >
+                    <input
+                      id="fDokumen"
+                      type="file"
+                      accept=".pdf,image/*"
+                      class="text-xs w-full"
+                    />
+                    <p id="fDokInfo" class="text-[11px] text-slate-500 mt-1">
+                      Tersimpan ke folder Drive dengan prefix DOK_
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-600 mb-1"
+                    >Catatan</label
+                  >
+                  <textarea
+                    id="fCatatan"
+                    rows="2"
+                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  ></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onclick="navigate('assets')"
+                    class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow"
+                  >
+                    <i class="fa-solid fa-floppy-disk mr-1.5"></i>Simpan Aset
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <!-- MOBILE BOTTOM NAVIGATION BAR (Hanya tampil di layar < 768px) -->
+      <nav
+        class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 h-16 px-2 flex items-center justify-around shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+      >
+        <button
+          data-nav="dashboard"
+          onclick="navigate('dashboard')"
+          class="admin-only nav-mobile flex flex-col items-center justify-center text-[11px] font-medium text-slate-500 w-16"
+        >
+          <i class="fa-solid fa-chart-pie text-lg mb-0.5"></i><span>Home</span>
+        </button>
+        <button
+          data-nav="assets"
+          onclick="navigate('assets')"
+          class="nav-mobile flex flex-col items-center justify-center text-[11px] font-medium text-slate-500 w-16"
+        >
+          <i class="fa-solid fa-boxes-stacked text-lg mb-0.5"></i
+          ><span>Aset</span>
+        </button>
+        <button
+          data-nav="scan"
+          onclick="navigate('scan')"
+          class="nav-mobile -mt-5 w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg flex flex-col items-center justify-center border-4 border-slate-100"
+        >
+          <i class="fa-solid fa-qrcode text-xl"></i>
+        </button>
+        <button
+          data-nav="form"
+          onclick="openAddAssetForm()"
+          class="admin-only nav-mobile flex flex-col items-center justify-center text-[11px] font-medium text-slate-500 w-16"
+        >
+          <i class="fa-solid fa-plus-circle text-lg mb-0.5"></i
+          ><span>Tambah</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ==================== MODAL DETAIL & STOCK OPNAME ==================== -->
+    <div
+      id="detailModal"
+      class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-end md:items-center justify-center p-0 md:p-4"
+    >
+      <div
+        class="bg-white w-full md:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-3xl md:rounded-2xl shadow-2xl p-5 md:p-6 space-y-5"
+      >
+        <div
+          class="flex items-start justify-between border-b border-slate-100 pb-3"
+        >
+          <div>
+            <span
+              id="dKodeQr"
+              class="inline-block px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-mono font-bold"
+              >-</span
+            >
+            <h3 id="dNamaAset" class="text-lg font-bold text-slate-800 mt-1">
+              -
+            </h3>
+          </div>
+          <button
+            onclick="closeModal('detailModal')"
+            class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+          >
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div id="dFotoWrap" class="hidden">
+          <img
+            id="dFotoImg"
+            src=""
+            alt="Foto Aset"
+            class="w-full max-h-60 object-cover rounded-xl border border-slate-200"
+          />
+        </div>
+
+        <div
+          id="dSpecs"
+          class="grid grid-cols-2 gap-3 text-xs md:text-sm bg-slate-50 p-4 rounded-xl"
+        ></div>
+
+        <div class="flex flex-wrap gap-2">
+          <a
+            id="dDocLink"
+            href="#"
+            target="_blank"
+            class="hidden px-3.5 py-2 rounded-lg bg-slate-800 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-file-lines mr-1.5"></i>Buka Dokumen
+          </a>
+          <button
+            onclick="openQrLabelFromDetail()"
+            class="px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-qrcode mr-1.5"></i>Label QR
+          </button>
+          <button
+            onclick="editFromDetail()"
+            class="admin-only px-3.5 py-2 rounded-lg bg-amber-500 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-pen mr-1.5"></i>Edit
+          </button>
+          <button
+            onclick="deleteFromDetail()"
+            class="admin-only px-3.5 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-trash mr-1.5"></i>Hapus
+          </button>
+        </div>
+
+        <!-- Form Cepat Stock Opname (Admin & Staff) -->
+        <form
+          id="opnameForm"
+          class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 space-y-3"
+        >
+          <div class="font-bold text-emerald-900 text-sm">
+            <i class="fa-solid fa-clipboard-check mr-1.5"></i>Stock Opname /
+            Audit Hari Ini
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-emerald-800 mb-1"
+                >Kondisi Terkini</label
+              >
+              <select
+                id="opKondisi"
+                class="w-full px-3 py-2 rounded-lg border border-emerald-200 bg-white text-sm"
+              ></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-emerald-800 mb-1"
+                >Lokasi Aktual</label
+              >
+              <select
+                id="opLokasi"
+                class="w-full px-3 py-2 rounded-lg border border-emerald-200 bg-white text-sm"
+              ></select>
+            </div>
+          </div>
+          <input
+            id="opCatatan"
+            type="text"
+            placeholder="Catatan audit lapangan (opsional)..."
+            class="w-full px-3 py-2 rounded-lg border border-emerald-200 bg-white text-sm"
+          />
+          <button
+            type="submit"
+            class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+          >
+            Simpan Hasil Audit
+          </button>
+        </form>
+
+        <div>
+          <div class="text-xs font-bold text-slate-500 uppercase mb-2">
+            Riwayat Aktivitas Aset
+          </div>
+          <div id="dLogs" class="space-y-2 text-xs"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MODAL LABEL QR (DOWNLOAD & PRINT) ==================== -->
+    <div
+      id="qrModal"
+      class="hidden fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4"
+    >
+      <div
+        class="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl"
+      >
+        <div
+          id="print-label-area"
+          class="p-4 border-2 border-slate-800 rounded-xl inline-block bg-white"
+        >
+          <div
+            class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2"
+          >
+            Aset Perusahaan
+          </div>
+          <div id="qrCanvasBox" class="flex justify-center my-2"></div>
+          <div
+            id="qrLabelCode"
+            class="font-mono font-bold text-sm text-slate-900 mt-2"
+          ></div>
+          <div
+            id="qrLabelName"
+            class="text-xs font-semibold text-slate-700 truncate max-w-[210px] mx-auto"
+          ></div>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <button
+            onclick="downloadQrPng()"
+            class="py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-download mr-1"></i>Download PNG
+          </button>
+          <button
+            onclick="window.print()"
+            class="py-2.5 rounded-xl bg-slate-800 text-white text-xs font-semibold"
+          >
+            <i class="fa-solid fa-print mr-1"></i>Cetak Label
+          </button>
+        </div>
+        <button
+          onclick="closeModal('qrModal')"
+          class="text-xs text-slate-500 font-semibold"
+        >
+          Tutup
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT ==================== -->
+    <script>
+      // [WAJIB DIISI] Paste URL Web App Google Apps Script (/exec) Anda di sini!
+      const API_URL = "PASTE_URL_WEB_APP_GAS_ANDA_DI_SINI";
+
+      const STATE = {
+        token: sessionStorage.getItem("aset_token") || "",
+        user: null,
+        referensi: { kategori: [], lokasi: [], kondisi: [], status: [] },
+        assets: [],
+        logs: [],
+        kpi: null,
+        activeDetail: null,
+        scanner: null,
+        formScanner: null,
+      };
+
+      /* ================= HELPER & API CLIENT ================= */
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"']/g,
+          (m) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[m],
+        );
+      const fmtRp = (n) => "Rp " + Number(n || 0).toLocaleString("id-ID");
+
+      function showLoading(show, text = "Memproses...") {
+        document.getElementById("loadingText").textContent = text;
+        document
+          .getElementById("loadingOverlay")
+          .classList.toggle("hidden", !show);
+      }
+
+      function showToast(msg, type = "info") {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.className =
+          "fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[92%] px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white text-center " +
+          (type === "error"
+            ? "bg-red-600"
+            : type === "success"
+              ? "bg-emerald-600"
+              : "bg-slate-800");
+        el.classList.remove("hidden");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.add("hidden"), 3500);
+      }
+
+      async function apiCall(action, payload = {}, loadingMsg = "") {
+        if (API_URL.includes("PASTE_URL_WEB_APP")) {
+          throw new Error(
+            "API_URL di index.html belum diisi dengan URL Web App GAS Anda.",
+          );
+        }
+        if (loadingMsg) showLoading(true, loadingMsg);
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action, token: STATE.token, payload }),
+          });
+          const json = await res.json();
+          if (json.status !== "ok") {
+            if (json.code === "UNAUTHORIZED") {
+              forceLogoutToLogin(json.message);
+            }
+            throw new Error(json.message || "Terjadi kesalahan server.");
+          }
+          return json.data;
+        } finally {
+          if (loadingMsg) showLoading(false);
+        }
+      }
+
+      /* ================= AUTH & INIT ================= */
+      window.addEventListener("DOMContentLoaded", () => {
+        if (STATE.token) {
+          loadInitialData(false);
+        } else {
+          showLoginView();
+        }
+      });
+
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            const data = await apiCall(
+              "login",
+              {
+                username: document.getElementById("loginUser").value.trim(),
+                password: document.getElementById("loginPass").value,
+              },
+              "Memverifikasi akun...",
+            );
+            STATE.token = data.token;
+            sessionStorage.setItem("aset_token", data.token);
+            document.getElementById("loginForm").reset();
+            await loadInitialData(false);
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        });
+
+      async function doLogout() {
+        stopQrScanner();
+        try {
+          await apiCall("logout", {}, "Keluar...");
+        } catch (_) {}
+        forceLogoutToLogin("Anda telah keluar.");
+      }
+
+      function forceLogoutToLogin(msg) {
+        STATE.token = "";
+        STATE.user = null;
+        sessionStorage.removeItem("aset_token");
+        showLoginView();
+        if (msg) showToast(msg, "info");
+      }
+
+      function showLoginView() {
+        document.getElementById("appShell").classList.add("hidden");
+        document.getElementById("loginView").classList.remove("hidden");
+      }
+
+      async function loadInitialData(isRefresh) {
+        try {
+          const data = await apiCall(
+            "getInitialData",
+            {},
+            isRefresh ? "Menyinkronkan data..." : "Memuat aplikasi...",
+          );
+          STATE.user = data.user;
+          STATE.referensi = data.referensi;
+          STATE.assets = data.assets;
+          STATE.logs = data.logs;
+          STATE.kpi = data.kpi;
+
+          applyRoleUI();
+          populateSelects();
+          renderDashboard();
+          renderAssetList();
+
+          document.getElementById("loginView").classList.add("hidden");
+          document.getElementById("appShell").classList.remove("hidden");
+
+          if (!isRefresh) {
+            navigate(STATE.user.role === "Admin" ? "dashboard" : "scan");
+          } else {
+            showToast("Data berhasil diperbarui", "success");
+          }
+        } catch (err) {
+          showToast(err.message, "error");
+          if (!STATE.user) showLoginView();
+        }
+      }
+
+      function applyRoleUI() {
+        const isAdmin = STATE.user.role === "Admin";
+        document.querySelectorAll(".admin-only").forEach((el) => {
+          el.classList.toggle("hidden", !isAdmin);
+        });
+        document.getElementById("deskUserName").textContent =
+          STATE.user.nama_lengkap;
+        document.getElementById("deskUserRole").textContent = STATE.user.role;
+        document.getElementById("deskAvatar").textContent = (STATE.user
+          .nama_lengkap || "U")[0].toUpperCase();
+        document.getElementById("mobUserLabel").textContent =
+          `${STATE.user.nama_lengkap} (${STATE.user.role})`;
+      }
+
+      /* ================= NAVIGATION ================= */
+      function navigate(view) {
+        if (
+          (view === "dashboard" || view === "form") &&
+          STATE.user?.role !== "Admin"
+        ) {
+          view = "scan";
+        }
+        stopQrScanner();
+        document
+          .querySelectorAll(".view-section")
+          .forEach((s) => s.classList.add("hidden"));
+        document.getElementById("view-" + view).classList.remove("hidden");
+
+        const titles = {
+          dashboard: "Dashboard KPI",
+          assets: "Daftar Aset Perusahaan",
+          scan: "Scan QR & Stock Opname",
+          form: "Form Data Aset",
+        };
+        document.getElementById("desktopPageTitle").textContent =
+          titles[view] || "Manajemen Aset";
+
+        document.querySelectorAll(".nav-desktop").forEach((b) => {
+          const active = b.dataset.nav === view;
+          b.classList.toggle("bg-blue-600", active);
+          b.classList.toggle("text-white", active);
+        });
+        document.querySelectorAll(".nav-mobile").forEach((b) => {
+          if (b.dataset.nav === "scan") return;
+          const active = b.dataset.nav === view;
+          b.classList.toggle("text-blue-600", active);
+          b.classList.toggle("text-slate-500", !active);
+        });
+      }
+
+      /* ================= RENDERING ================= */
+      function fillSelect(id, items, placeholder = null) {
+        const el = document.getElementById(id);
+        const opts = placeholder
+          ? [`<option value="">${esc(placeholder)}</option>`]
+          : [];
+        items.forEach((i) =>
+          opts.push(`<option value="${esc(i)}">${esc(i)}</option>`),
+        );
+        el.innerHTML = opts.join("");
+      }
+
+      function populateSelects() {
+        const r = STATE.referensi;
+        fillSelect("filterKategori", r.kategori, "Semua Kategori");
+        fillSelect("filterLokasi", r.lokasi, "Semua Lokasi");
+        fillSelect("filterKondisi", r.kondisi, "Semua Kondisi");
+        fillSelect("fKategori", r.kategori);
+        fillSelect("fLokasi", r.lokasi);
+        fillSelect("fKondisi", r.kondisi);
+        fillSelect("fStatus", r.status);
+        fillSelect("opKondisi", r.kondisi);
+        fillSelect("opLokasi", r.lokasi);
+      }
+
+      function kondisiBadge(k) {
+        const l = String(k || "").toLowerCase();
+        const cls =
+          l === "baik"
+            ? "bg-emerald-100 text-emerald-700"
+            : l.includes("ringan")
+              ? "bg-amber-100 text-amber-700"
+              : "bg-red-100 text-red-700";
+        return `<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${cls}">${esc(k || "-")}</span>`;
+      }
+
+      function renderDashboard() {
+        if (!STATE.kpi) return;
+        document.getElementById("kpiTotal").textContent = STATE.kpi.totalAset;
+        document.getElementById("kpiNilai").textContent = fmtRp(
+          STATE.kpi.totalNilai,
+        );
+        document.getElementById("kpiBaik").textContent = STATE.kpi.baik;
+        document.getElementById("kpiRusak").textContent =
+          STATE.kpi.rusak + STATE.kpi.lainnya;
+
+        const box = document.getElementById("dashboardLogs");
+        if (!STATE.logs.length) {
+          box.innerHTML =
+            '<div class="py-6 text-center text-slate-400 text-xs">Belum ada aktivitas tercatat.</div>';
+          return;
+        }
+        box.innerHTML = STATE.logs
+          .slice(0, 10)
+          .map(
+            (l) => `
+        <div class="py-3 flex items-start justify-between gap-3">
+          <div>
+            <div class="font-semibold text-slate-800">${esc(l.namaAset)} <span class="text-xs font-mono text-blue-600">(${esc(l.kodeQr)})</span></div>
+            <div class="text-xs text-slate-500">${esc(l.jenis)} • ${esc(l.keterangan)} • Petugas: <b>${esc(l.petugas)}</b></div>
+          </div>
+          <div class="text-[11px] text-slate-400 whitespace-nowrap">${esc(l.tanggal)}</div>
+        </div>
+      `,
+          )
+          .join("");
+      }
+
+      function getFilteredAssets() {
+        const q = document
+          .getElementById("filterSearch")
+          .value.trim()
+          .toLowerCase();
+        const kat = document.getElementById("filterKategori").value;
+        const lok = document.getElementById("filterLokasi").value;
+        const kon = document.getElementById("filterKondisi").value;
+
+        return STATE.assets.filter((a) => {
+          const matchQ =
+            !q ||
+            a.namaAset.toLowerCase().includes(q) ||
+            a.kodeQr.toLowerCase().includes(q) ||
+            a.pic.toLowerCase().includes(q);
+          return (
+            matchQ &&
+            (!kat || a.kategori === kat) &&
+            (!lok || a.lokasi === lok) &&
+            (!kon || a.kondisi === kon)
+          );
+        });
+      }
+
+      function renderAssetList() {
+        const list = getFilteredAssets();
+        const isAdmin = STATE.user?.role === "Admin";
+        const tbody = document.getElementById("desktopAssetTable");
+        const cards = document.getElementById("mobileAssetCards");
+
+        if (!list.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-center text-slate-400">Tidak ada aset yang cocok.</td></tr>`;
+          cards.innerHTML = `<div class="bg-white p-8 rounded-2xl text-center text-slate-400 text-sm">Tidak ada aset yang cocok.</div>`;
+          return;
+        }
+
+        // 1. Render Desktop Table
+        tbody.innerHTML = list
+          .map(
+            (a) => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-3">
+              ${
+                a.linkFoto
+                  ? `<img src="${esc(a.linkFoto)}" class="w-10 h-10 rounded-lg object-cover border border-slate-200" />`
+                  : `<div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center"><i class="fa-solid fa-box"></i></div>`
+              }
+              <div>
+                <div class="font-semibold text-slate-800">${esc(a.namaAset)}</div>
+                <div class="text-xs font-mono text-blue-600">${esc(a.kodeQr)}</div>
+              </div>
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="text-slate-700">${esc(a.kategori)}</div>
+            <div class="text-xs text-slate-400">${esc(a.merkTipe || "-")}</div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="text-slate-700">${esc(a.lokasi)}</div>
+            <div class="text-xs text-slate-400">PIC: ${esc(a.pic || "-")}</div>
+          </td>
+          <td class="py-3 px-4 space-y-1">
+            <div>${kondisiBadge(a.kondisi)}</div>
+            <div class="text-[11px] text-slate-500">${esc(a.status)}</div>
+          </td>
+          ${isAdmin ? `<td class="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">${fmtRp(a.hargaPerolehan)}</td>` : ""}
+          <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
+            <button onclick="openDetailModal('${esc(a.kodeQr)}')" class="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold">Detail</button>
+            <button onclick="showQrModal('${esc(a.kodeQr)}','${esc(a.namaAset)}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs"><i class="fa-solid fa-qrcode"></i></button>
+          </td>
+        </tr>
+      `,
+          )
+          .join("");
+
+        // 2. Render Mobile Cards
+        cards.innerHTML = list
+          .map(
+            (a) => `
+        <div onclick="openDetailModal('${esc(a.kodeQr)}')" class="bg-white p-3.5 rounded-2xl shadow-xs border border-slate-200 flex items-center gap-3 active:scale-[0.99] transition">
+          ${
+            a.linkFoto
+              ? `<img src="${esc(a.linkFoto)}" class="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0" />`
+              : `<div class="w-16 h-16 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-box"></i></div>`
+          }
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-mono font-bold text-blue-600 truncate">${esc(a.kodeQr)}</span>
+              ${kondisiBadge(a.kondisi)}
+            </div>
+            <div class="font-bold text-slate-800 text-sm truncate mt-0.5">${esc(a.namaAset)}</div>
+            <div class="text-xs text-slate-500 truncate mt-1">
+              <i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${esc(a.lokasi)} • ${esc(a.pic || "-")}
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+        </div>
+      `,
+          )
+          .join("");
+      }
+
+      /* ================= QR SCANNER (KAMERA & GALERI) ================= */
+      async function startQrScanner(mode) {
+        await stopQrScanner();
+        const targetId = mode === "form" ? "form-qr-reader" : "qr-reader";
+        const el = document.getElementById(targetId);
+        el.classList.remove("hidden");
+        el.innerHTML = "";
+
+        const scanner = new Html5Qrcode(targetId);
+        if (mode === "form") STATE.formScanner = scanner;
+        else STATE.scanner = scanner;
+
+        try {
+          await scanner.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            async (decodedText) => {
+              await stopQrScanner();
+              handleScannedQr(decodedText, mode);
+            },
+            () => {},
+          );
+        } catch (err) {
+          showToast(
+            "Kamera gagal dibuka: " +
+              err +
+              ". Gunakan tombol Scan dari Foto/Galeri.",
+            "error",
+          );
+        }
+      }
+
+      async function stopQrScanner() {
+        for (const key of ["scanner", "formScanner"]) {
+          if (STATE[key]) {
+            try {
+              await STATE[key].stop();
+              STATE[key].clear();
+            } catch (_) {}
+            STATE[key] = null;
+          }
+        }
+        document.getElementById("form-qr-reader").classList.add("hidden");
+      }
+
+      async function scanQrFromFile(event, mode) {
+        const file = event.target.files[0];
+        if (!file) return;
+        await stopQrScanner();
+        const reader = new Html5Qrcode("qr-reader");
+        try {
+          const decodedText = await reader.scanFile(file, true);
+          handleScannedQr(decodedText, mode);
+        } catch (err) {
+          showToast("QR Code tidak terbaca pada gambar tersebut.", "error");
+        } finally {
+          event.target.value = "";
+        }
+      }
+
+      function openFormQrScanner() {
+        startQrScanner("form");
+      }
+
+      async function handleScannedQr(kodeQr, mode) {
+        const cleanQr = String(kodeQr || "").trim();
+        if (!cleanQr) return;
+        if (mode === "form") {
+          document.getElementById("fKodeQr").value = cleanQr;
+          const dup = STATE.assets.find(
+            (a) => a.kodeQr.toLowerCase() === cleanQr.toLowerCase(),
+          );
+          if (dup) {
+            showToast(
+              `QR "${cleanQr}" sudah terdaftar (${dup.namaAset})! Membuka detail...`,
+              "error",
+            );
+            openDetailModal(dup.kodeQr);
+          } else {
+            showToast(
+              "QR belum terdaftar. Silakan lanjutkan isi form.",
+              "success",
+            );
+          }
+        } else {
+          await lookupQrCode(cleanQr);
+        }
+      }
+
+      async function lookupQrCode(kodeQr) {
+        const clean = String(kodeQr || "").trim();
+        if (!clean)
+          return showToast("Masukkan Kode QR terlebih dahulu.", "error");
+        await openDetailModal(clean);
+      }
+
+      /* ================= DETAIL & STOCK OPNAME ================= */
+      async function openDetailModal(kodeQr) {
+        try {
+          const res = await apiCall(
+            "getAssetByQr",
+            { kodeQr },
+            "Mengambil detail aset...",
+          );
+          if (!res.found) {
+            return showToast(
+              `Aset dengan QR "${kodeQr}" tidak ditemukan.`,
+              "error",
+            );
+          }
+          const a = res.asset;
+          STATE.activeDetail = a;
+
+          document.getElementById("dKodeQr").textContent = a.kodeQr;
+          document.getElementById("dNamaAset").textContent = a.namaAset;
+
+          const fotoWrap = document.getElementById("dFotoWrap");
+          if (a.linkFoto) {
+            document.getElementById("dFotoImg").src = a.linkFoto;
+            fotoWrap.classList.remove("hidden");
+          } else {
+            fotoWrap.classList.add("hidden");
+          }
+
+          const docLink = document.getElementById("dDocLink");
+          if (a.linkDokumen) {
+            docLink.href = a.linkDokumen;
+            docLink.classList.remove("hidden");
+          } else {
+            docLink.classList.add("hidden");
+          }
+
+          const isAdmin = STATE.user.role === "Admin";
+          document.getElementById("dSpecs").innerHTML = `
+          <div><span class="text-slate-400 block">Kategori</span><b>${esc(a.kategori || "-")}</b></div>
+          <div><span class="text-slate-400 block">Merk / Tipe</span><b>${esc(a.merkTipe || "-")}</b></div>
+          <div><span class="text-slate-400 block">Lokasi</span><b>${esc(a.lokasi || "-")}</b></div>
+          <div><span class="text-slate-400 block">PIC</span><b>${esc(a.pic || "-")}</b></div>
+          <div><span class="text-slate-400 block">Kondisi</span>${kondisiBadge(a.kondisi)}</div>
+          <div><span class="text-slate-400 block">Status</span><b>${esc(a.status || "-")}</b></div>
+          <div><span class="text-slate-400 block">Nomor Seri</span><b>${esc(a.nomorSeri || "-")}</b></div>
+          <div><span class="text-slate-400 block">Terakhir Audit</span><b>${esc(a.terakhirAudit || "-")}</b></div>
+          ${isAdmin ? `<div class="col-span-2"><span class="text-slate-400 block">Harga Perolehan</span><b class="text-blue-700">${fmtRp(a.hargaPerolehan)}</b> (Beli: ${esc(a.tanggalBeli || "-")})</div>` : ""}
+          <div class="col-span-2"><span class="text-slate-400 block">Catatan</span><span>${esc(a.catatan || "-")}</span></div>
+        `;
+
+          document.getElementById("opKondisi").value = a.kondisi;
+          document.getElementById("opLokasi").value = a.lokasi;
+          document.getElementById("opCatatan").value = "";
+
+          document.getElementById("dLogs").innerHTML = res.logs.length
+            ? res.logs
+                .map(
+                  (l) =>
+                    `<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-100"><b>${esc(l.jenis)}</b> (${esc(l.tanggal)}) • ${esc(l.kondisi)} • ${esc(l.keterangan)} — <i>${esc(l.petugas)}</i></div>`,
+                )
+                .join("")
+            : '<div class="text-slate-400">Belum ada riwayat.</div>';
+
+          document.getElementById("detailModal").classList.remove("hidden");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      }
+
+      document
+        .getElementById("opnameForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!STATE.activeDetail) return;
+          try {
+            await apiCall(
+              "stockOpname",
+              {
+                idAset: STATE.activeDetail.idAset,
+                kondisi: document.getElementById("opKondisi").value,
+                lokasi: document.getElementById("opLokasi").value,
+                catatan: document.getElementById("opCatatan").value,
+              },
+              "Menyimpan hasil audit...",
+            );
+            showToast("Stock Opname berhasil disimpan!", "success");
+            closeModal("detailModal");
+            await loadInitialData(true);
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        });
+
+      /* ================= CRUD ADMIN (KOMPRESI FOTO + FORM) ================= */
+      function openAddAssetForm() {
+        document.getElementById("assetForm").reset();
+        document.getElementById("fIdAset").value = "";
+        document.getElementById("formTitle").textContent = "Tambah Aset Baru";
+        navigate("form");
+      }
+
+      function editFromDetail() {
+        const a = STATE.activeDetail;
+        if (!a) return;
+        closeModal("detailModal");
+        document.getElementById("assetForm").reset();
+        document.getElementById("fIdAset").value = a.idAset;
+        document.getElementById("fKodeQr").value = a.kodeQr;
+        document.getElementById("fNamaAset").value = a.namaAset;
+        document.getElementById("fKategori").value = a.kategori;
+        document.getElementById("fMerkTipe").value = a.merkTipe;
+        document.getElementById("fNomorSeri").value = a.nomorSeri;
+        document.getElementById("fTanggalBeli").value = a.tanggalBeli;
+        document.getElementById("fHarga").value = a.hargaPerolehan;
+        document.getElementById("fLokasi").value = a.lokasi;
+        document.getElementById("fPic").value = a.pic;
+        document.getElementById("fKondisi").value = a.kondisi;
+        document.getElementById("fStatus").value = a.status;
+        document.getElementById("fCatatan").value = a.catatan;
+        document.getElementById("formTitle").textContent =
+          "Edit Aset: " + a.kodeQr;
+        navigate("form");
+      }
+
+      async function deleteFromDetail() {
+        const a = STATE.activeDetail;
+        if (!a || !confirm(`Yakin ingin menghapus aset "${a.namaAset}"?`))
+          return;
+        try {
+          await apiCall(
+            "deleteAsset",
+            { idAset: a.idAset },
+            "Menghapus aset...",
+          );
+          closeModal("detailModal");
+          showToast("Aset berhasil dihapus.", "success");
+          await loadInitialData(true);
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      }
+
+      function compressImage(file, maxWidth = 1280, quality = 0.7) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+              const scale = Math.min(1, maxWidth / img.width);
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.round(img.width * scale);
+              canvas.height = Math.round(img.height * scale);
+              canvas
+                .getContext("2d")
+                .drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL("image/jpeg", quality));
+            };
+            img.onerror = reject;
+            img.src = ev.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function readFileAsBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      document
+        .getElementById("assetForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          try {
+            const idAset = document.getElementById("fIdAset").value;
+            const payload = {
+              idAset,
+              kodeQr: document.getElementById("fKodeQr").value.trim(),
+              namaAset: document.getElementById("fNamaAset").value.trim(),
+              kategori: document.getElementById("fKategori").value,
+              merkTipe: document.getElementById("fMerkTipe").value.trim(),
+              nomorSeri: document.getElementById("fNomorSeri").value.trim(),
+              tanggalBeli: document.getElementById("fTanggalBeli").value,
+              hargaPerolehan: Number(
+                document.getElementById("fHarga").value || 0,
+              ),
+              lokasi: document.getElementById("fLokasi").value,
+              pic: document.getElementById("fPic").value.trim(),
+              kondisi: document.getElementById("fKondisi").value,
+              status: document.getElementById("fStatus").value,
+              catatan: document.getElementById("fCatatan").value.trim(),
+            };
+
+            const fotoFile = document.getElementById("fFoto").files[0];
+            if (fotoFile) {
+              showLoading(true, "Mengompres foto...");
+              payload.fotoBase64 = await compressImage(fotoFile);
+              payload.fotoName = fotoFile.name.replace(/\.[^.]+$/, ".jpg");
+              payload.fotoMime = "image/jpeg";
+            }
+
+            const dokFile = document.getElementById("fDokumen").files[0];
+            if (dokFile) {
+              showLoading(true, "Membaca dokumen...");
+              payload.dokumenBase64 = await readFileAsBase64(dokFile);
+              payload.dokumenName = dokFile.name;
+              payload.dokumenMime = dokFile.type || "application/pdf";
+            }
+
+            const action = idAset ? "updateAsset" : "saveAsset";
+            const res = await apiCall(
+              action,
+              payload,
+              "Menyimpan ke Sheets & Drive...",
+            );
+            showToast(
+              idAset
+                ? "Aset berhasil diperbarui!"
+                : "Aset baru berhasil disimpan!",
+              "success",
+            );
+            await loadInitialData(true);
+            navigate("assets");
+            if (!idAset && res.asset) {
+              showQrModal(res.asset.kodeQr, res.asset.namaAset);
+            }
+          } catch (err) {
+            showLoading(false);
+            showToast(err.message, "error");
+          }
+        });
+
+      /* ================= QR GENERATOR & EXPORT CSV ================= */
+      function openQrLabelFromDetail() {
+        if (!STATE.activeDetail) return;
+        showQrModal(STATE.activeDetail.kodeQr, STATE.activeDetail.namaAset);
+      }
+
+      function showQrModal(kodeQr, namaAset) {
+        const box = document.getElementById("qrCanvasBox");
+        box.innerHTML = "";
+        new QRCode(box, {
+          text: kodeQr,
+          width: 180,
+          height: 180,
+          correctLevel: QRCode.CorrectLevel.H,
+        });
+        document.getElementById("qrLabelCode").textContent = kodeQr;
+        document.getElementById("qrLabelName").textContent = namaAset;
+        document.getElementById("qrModal").classList.remove("hidden");
+      }
+
+      function downloadQrPng() {
+        const canvas = document.querySelector("#qrCanvasBox canvas");
+        if (!canvas) return;
+        const a = document.createElement("a");
+        a.download =
+          document.getElementById("qrLabelCode").textContent + ".png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      }
+
+      function exportFilteredCsv() {
+        if (STATE.user?.role !== "Admin") return;
+        const list = getFilteredAssets();
+        const headers = [
+          "ID_Aset",
+          "Kode_QR",
+          "Nama_Aset",
+          "Kategori",
+          "Merk_Tipe",
+          "Nomor_Seri",
+          "Tanggal_Beli",
+          "Harga_Perolehan",
+          "Lokasi",
+          "PIC",
+          "Kondisi",
+          "Status",
+          "Terakhir_Audit",
+          "Catatan",
+        ];
+        const rows = list.map((a) =>
+          [
+            a.idAset,
+            a.kodeQr,
+            a.namaAset,
+            a.kategori,
+            a.merkTipe,
+            a.nomorSeri,
+            a.tanggalBeli,
+            a.hargaPerolehan,
+            a.lokasi,
+            a.pic,
+            a.kondisi,
+            a.status,
+            a.terakhirAudit,
+            a.catatan,
+          ]
+            .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
+            .join(","),
+        );
+        const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `Laporan_Aset_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+      }
+
+      function closeModal(id) {
+        document.getElementById(id).classList.add("hidden");
+      }
+    </script>
+  </body>
+</html>
