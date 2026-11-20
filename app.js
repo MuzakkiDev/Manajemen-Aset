@@ -1,35 +1,11 @@
 // app.js
-import { auth, db, storage } from "./firebase-config.js";
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-storage.js";
+import { supabase } from "./supabase-config.js";
 
 // ==========================================
 // GLOBAL STATE
 // ==========================================
-let currentUser = null; // { uid, email, namaLengkap, role }
-let allAssets = []; // Cache daftar aset dari Firestore
+let currentUser = null; // { uid, email, nama_lengkap, role }
+let allAssets = []; // Cache daftar aset dari PostgreSQL
 let selectedAsset = null; // Aset yang sedang dibuka di modal detail
 let mainScanner = null; // Instance html5-qrcode untuk menu Scan Cepat
 let formScanner = null; // Instance html5-qrcode untuk form Tambah Aset
@@ -68,7 +44,6 @@ function showToast(message, type = "success") {
   }, 3500);
 }
 
-// Sanitasi teks mencegah XSS saat menyusun HTML
 function escapeHTML(str) {
   if (str === null || str === undefined) return "";
   return String(str)
@@ -90,7 +65,7 @@ function formatRupiah(angka) {
 
 function formatTimestamp(ts) {
   if (!ts) return "-";
-  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  const date = new Date(ts);
   if (isNaN(date.getTime())) return String(ts);
   return date.toLocaleString("id-ID", {
     day: "2-digit",
@@ -114,7 +89,6 @@ function generateAutoQR() {
   return `AST-${y}${m}${d}-${rand}`;
 }
 
-// Kompresi gambar di sisi browser sebelum upload ke Firebase Storage
 function compressImage(file, maxWidth = 1280, quality = 0.7) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -165,10 +139,10 @@ function initThemeToggle() {
 }
 
 // ==========================================
-// AUTHENTICATION & RBAC
+// SUPABASE AUTHENTICATION & RBAC
 // ==========================================
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
+async function handleUserSession(session) {
+  if (!session || !session.user) {
     currentUser = null;
     stopAllScanners();
     $("app-section").classList.add("hidden");
@@ -176,29 +150,31 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  showLoading("Memverifikasi akun...");
+  showLoading("Memverifikasi profil pengguna...");
   try {
-    const userDocRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userDocRef);
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .single();
 
-    if (!userSnap.exists()) {
-      await signOut(auth);
-      showToast("Profil user tidak ditemukan di database.", "error");
+    if (error || !profile) {
+      await supabase.auth.signOut();
+      showToast("Profil user belum terdaftar di tabel profiles.", "error");
       return;
     }
 
-    const userData = userSnap.data();
-    if (userData.statusAktif !== true) {
-      await signOut(auth);
-      showToast("Akun Anda telah dinonaktifkan oleh Admin.", "error");
+    if (profile.status_aktif !== true) {
+      await supabase.auth.signOut();
+      showToast("Akun Anda dinonaktifkan oleh Admin.", "error");
       return;
     }
 
     currentUser = {
-      uid: user.uid,
-      email: user.email,
-      namaLengkap: userData.namaLengkap || user.email,
-      role: userData.role || "Staff",
+      uid: session.user.id,
+      email: session.user.email,
+      nama_lengkap: profile.nama_lengkap || session.user.email,
+      role: profile.role || "Staff",
     };
 
     setupUIByRole();
@@ -207,18 +183,22 @@ onAuthStateChanged(auth, async (user) => {
 
     await loadAllData();
 
-    // Routing awal sesuai role
     if (currentUser.role === "Admin") {
       switchView("dashboard");
     } else {
       switchView("scan");
     }
-  } catch (error) {
-    console.error("Auth error:", error);
-    showToast("Gagal memuat sesi pengguna: " + error.message, "error");
+  } catch (err) {
+    console.error("Session error:", err);
+    showToast("Terjadi kesalahan sesi: " + err.message, "error");
   } finally {
     hideLoading();
   }
+}
+
+// Pantau perubahan status login secara real-time
+supabase.auth.onAuthStateChange((_event, session) => {
+  handleUserSession(session);
 });
 
 $("login-form").addEventListener("submit", async (e) => {
@@ -231,7 +211,11 @@ $("login-form").addEventListener("submit", async (e) => {
   showLoading("Sedang masuk...");
 
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
     $("login-form").reset();
   } catch (error) {
     errBox.textContent = "Email atau password salah, atau jaringan bermasalah.";
@@ -244,7 +228,7 @@ $("login-form").addEventListener("submit", async (e) => {
 document.querySelectorAll(".btn-logout").forEach((btn) => {
   btn.addEventListener("click", async () => {
     stopAllScanners();
-    await signOut(auth);
+    await supabase.auth.signOut();
     showToast("Anda telah keluar dari sistem.");
   });
 });
@@ -252,13 +236,11 @@ document.querySelectorAll(".btn-logout").forEach((btn) => {
 function setupUIByRole() {
   const isAdmin = currentUser.role === "Admin";
 
-  // Update info user di Desktop & Mobile header
-  $("desktop-user-name").textContent = currentUser.namaLengkap;
+  $("desktop-user-name").textContent = currentUser.nama_lengkap;
   $("desktop-user-role").textContent = currentUser.role;
   $("mobile-user-info").textContent =
-    `${currentUser.namaLengkap} (${currentUser.role})`;
+    `${currentUser.nama_lengkap} (${currentUser.role})`;
 
-  // Tampilkan/sembunyikan elemen khusus Admin
   document.querySelectorAll(".admin-only").forEach((el) => {
     if (isAdmin) {
       el.classList.remove("hidden");
@@ -272,7 +254,6 @@ function setupUIByRole() {
 // NAVIGATION & VIEW SWITCHER
 // ==========================================
 function switchView(viewName) {
-  // Cegah Staff mengakses view khusus Admin
   if (
     currentUser?.role !== "Admin" &&
     (viewName === "dashboard" || viewName === "form")
@@ -280,7 +261,6 @@ function switchView(viewName) {
     viewName = "scan";
   }
 
-  // Matikan kamera jika pindah dari halaman scan/form
   if (viewName !== "scan") stopMainScanner();
   if (viewName !== "form") stopFormScanner();
 
@@ -290,7 +270,6 @@ function switchView(viewName) {
   const targetView = $(`view-${viewName}`);
   if (targetView) targetView.classList.remove("hidden");
 
-  // Update status aktif tombol navigasi
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     if (btn.dataset.nav === viewName) {
       btn.classList.add("active");
@@ -305,30 +284,25 @@ function switchView(viewName) {
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const target = btn.dataset.nav;
-    if (target === "form") {
-      resetAsetForm();
-    }
+    if (target === "form") resetAsetForm();
     switchView(target);
   });
 });
 
 // ==========================================
-// LOAD DATA DARI FIRESTORE
+// LOAD DATA DARI POSTGRESQL SUPABASE
 // ==========================================
 async function loadAllData() {
   showLoading("Memuat data aset...");
   try {
-    const q = query(
-      collection(db, "master_aset"),
-      orderBy("updatedAt", "desc"),
-    );
-    const snapshot = await getDocs(q);
+    const { data, error } = await supabase
+      .from("master_aset")
+      .select("*")
+      .order("updated_at", { ascending: false });
 
-    allAssets = [];
-    snapshot.forEach((docSnap) => {
-      allAssets.push({ id: docSnap.id, ...docSnap.data() });
-    });
+    if (error) throw error;
 
+    allAssets = data || [];
     populateLocationFilters();
     renderAssetList();
 
@@ -337,8 +311,8 @@ async function loadAllData() {
       await loadRecentLogs();
     }
   } catch (error) {
-    console.error("Error loading assets:", error);
-    showToast("Gagal memuat daftar aset.", "error");
+    console.error("Load data error:", error);
+    showToast("Gagal memuat daftar aset: " + error.message, "error");
   } finally {
     hideLoading();
   }
@@ -382,7 +356,7 @@ function updateDashboardKPI() {
   let kondisiRusak = 0;
 
   allAssets.forEach((aset) => {
-    totalNilai += Number(aset.hargaPerolehan) || 0;
+    totalNilai += Number(aset.harga_perolehan) || 0;
     if (aset.kondisi === "Baik") {
       kondisiBaik++;
     } else {
@@ -399,39 +373,39 @@ function updateDashboardKPI() {
 async function loadRecentLogs() {
   const container = $("dashboard-recent-logs");
   try {
-    const q = query(
-      collection(db, "log_aktivitas"),
-      orderBy("tanggal", "desc"),
-      limit(8),
-    );
-    const snap = await getDocs(q);
+    const { data, error } = await supabase
+      .from("log_aktivitas")
+      .select("*")
+      .order("tanggal", { ascending: false })
+      .limit(8);
 
-    if (snap.empty) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       container.innerHTML =
         '<p class="text-slate-400 py-4 text-center">Belum ada aktivitas tercatat.</p>';
       return;
     }
 
-    let html = "";
-    snap.forEach((docSnap) => {
-      const log = docSnap.data();
-      html += `
+    container.innerHTML = data
+      .map(
+        (log) => `
         <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
           <div>
-            <span class="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(log.kodeQR)}</span>
-            <span class="font-medium ml-1.5">${escapeHTML(log.namaAset)}</span>
+            <span class="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(log.kode_qr)}</span>
+            <span class="font-medium ml-1.5">${escapeHTML(log.nama_aset)}</span>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              <span class="font-semibold">${escapeHTML(log.jenisAktivitas)}</span> — ${escapeHTML(log.keterangan || "-")}
+              <span class="font-semibold">${escapeHTML(log.jenis_aktivitas)}</span> — ${escapeHTML(log.keterangan || "-")}
             </p>
           </div>
           <div class="text-left sm:text-right text-xs text-slate-400 shrink-0">
-            <p class="font-medium text-slate-600 dark:text-slate-300">${escapeHTML(log.petugasNama)}</p>
+            <p class="font-medium text-slate-600 dark:text-slate-300">${escapeHTML(log.petugas_nama)}</p>
             <p>${formatTimestamp(log.tanggal)}</p>
           </div>
         </div>
-      `;
-    });
-    container.innerHTML = html;
+      `,
+      )
+      .join("");
   } catch (err) {
     console.error("Gagal memuat log:", err);
   }
@@ -462,11 +436,11 @@ function getFilteredAssets() {
   return allAssets.filter((item) => {
     const matchSearch =
       !search ||
-      (item.namaAset && item.namaAset.toLowerCase().includes(search)) ||
-      (item.kodeQR && item.kodeQR.toLowerCase().includes(search)) ||
-      (item.picPenanggungJawab &&
-        item.picPenanggungJawab.toLowerCase().includes(search)) ||
-      (item.platNomor && item.platNomor.toLowerCase().includes(search));
+      (item.nama_aset && item.nama_aset.toLowerCase().includes(search)) ||
+      (item.kode_qr && item.kode_qr.toLowerCase().includes(search)) ||
+      (item.pic_penanggung_jawab &&
+        item.pic_penanggung_jawab.toLowerCase().includes(search)) ||
+      (item.plat_nomor && item.plat_nomor.toLowerCase().includes(search));
 
     const matchKategori = !kategori || item.kategori === kategori;
     const matchLokasi = !lokasi || item.lokasi === lokasi;
@@ -492,24 +466,23 @@ function renderAssetList() {
 
   filtered.forEach((aset) => {
     const badgeClass = getKondisiBadge(aset.kondisi);
-    const subInfo = aset.platNomor
-      ? ` • ${escapeHTML(aset.platNomor)}`
-      : aset.merkTipe
-        ? ` • ${escapeHTML(aset.merkTipe)}`
+    const subInfo = aset.plat_nomor
+      ? ` • ${escapeHTML(aset.plat_nomor)}`
+      : aset.merk_tipe
+        ? ` • ${escapeHTML(aset.merk_tipe)}`
         : "";
 
-    // Desktop Row
     tableHtml += `
       <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
-        <td class="py-3 px-4 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kodeQR)}</td>
+        <td class="py-3 px-4 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kode_qr)}</td>
         <td class="py-3 px-4">
-          <div class="font-semibold">${escapeHTML(aset.namaAset)}</div>
-          <div class="text-xs text-slate-400">${escapeHTML(aset.merkTipe || "-")} ${aset.platNomor ? `(${escapeHTML(aset.platNomor)})` : ""}</div>
+          <div class="font-semibold">${escapeHTML(aset.nama_aset)}</div>
+          <div class="text-xs text-slate-400">${escapeHTML(aset.merk_tipe || "-")} ${aset.plat_nomor ? `(${escapeHTML(aset.plat_nomor)})` : ""}</div>
         </td>
         <td class="py-3 px-4 text-xs">${escapeHTML(aset.kategori)}</td>
         <td class="py-3 px-4">
           <div class="text-xs font-medium">${escapeHTML(aset.lokasi)}</div>
-          <div class="text-[11px] text-slate-400">PIC: ${escapeHTML(aset.picPenanggungJawab)}</div>
+          <div class="text-[11px] text-slate-400">PIC: ${escapeHTML(aset.pic_penanggung_jawab)}</div>
         </td>
         <td class="py-3 px-4">
           <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${badgeClass}">${escapeHTML(aset.kondisi)}</span>
@@ -522,18 +495,17 @@ function renderAssetList() {
       </tr>
     `;
 
-    // Mobile Card
     mobileHtml += `
       <div data-id="${aset.id}" class="btn-open-detail bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm active:scale-[0.99] transition cursor-pointer">
         <div class="flex justify-between items-start gap-2 mb-1.5">
-          <span class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kodeQR)}</span>
+          <span class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kode_qr)}</span>
           <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHTML(aset.kondisi)}</span>
         </div>
-        <h4 class="font-bold text-base leading-snug">${escapeHTML(aset.namaAset)}</h4>
+        <h4 class="font-bold text-base leading-snug">${escapeHTML(aset.nama_aset)}</h4>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${escapeHTML(aset.kategori)}${subInfo}</p>
         <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
           <span>📍 ${escapeHTML(aset.lokasi)}</span>
-          <span>👤 ${escapeHTML(aset.picPenanggungJawab)}</span>
+          <span>👤 ${escapeHTML(aset.pic_penanggung_jawab)}</span>
         </div>
       </div>
     `;
@@ -542,7 +514,6 @@ function renderAssetList() {
   tbody.innerHTML = tableHtml;
   mobileList.innerHTML = mobileHtml;
 
-  // Bind event klik detail
   document.querySelectorAll(".btn-open-detail").forEach((el) => {
     el.addEventListener("click", () => {
       const aset = allAssets.find((a) => a.id === el.dataset.id);
@@ -576,7 +547,6 @@ function updateDynamicFormFields() {
   const lblGaransi = $("label-garansi-stnk");
   const fMaint = $("field-maintenance");
 
-  // Reset visibilitas default
   fSpec.classList.remove("hidden");
   fSeri.classList.remove("hidden");
   fPlat.classList.add("hidden");
@@ -634,8 +604,7 @@ $("btn-cancel-form").addEventListener("click", () => {
 $("input-foto").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (file) {
-    const url = URL.createObjectURL(file);
-    $("preview-foto").src = url;
+    $("preview-foto").src = URL.createObjectURL(file);
     $("preview-foto").classList.remove("hidden");
   }
 });
@@ -648,16 +617,13 @@ $("aset-form").addEventListener("submit", async (e) => {
   const isEdit = Boolean(docId);
 
   let kodeQR = $("input-kode-qr").value.trim().toUpperCase();
-  if (!kodeQR) {
-    kodeQR = generateAutoQR();
-  }
+  if (!kodeQR) kodeQR = generateAutoQR();
 
-  // Cek duplikasi Kode QR saat tambah baru
   if (!isEdit) {
-    const duplicate = allAssets.find((a) => a.kodeQR.toUpperCase() === kodeQR);
+    const duplicate = allAssets.find((a) => a.kode_qr.toUpperCase() === kodeQR);
     if (duplicate) {
       showToast(
-        `Kode QR ${kodeQR} sudah digunakan oleh aset "${duplicate.namaAset}"!`,
+        `Kode QR ${kodeQR} sudah digunakan oleh aset "${duplicate.nama_aset}"!`,
         "error",
       );
       return;
@@ -669,105 +635,125 @@ $("aset-form").addEventListener("submit", async (e) => {
   );
 
   try {
-    let urlFoto = isEdit ? selectedAsset?.urlFoto || "" : "";
-    let urlDokumen = isEdit ? selectedAsset?.urlDokumen || "" : "";
+    let urlFoto = isEdit ? selectedAsset?.url_foto || null : null;
+    let urlDokumen = isEdit ? selectedAsset?.url_dokumen || null : null;
 
-    // 1. Kompres & Upload Foto jika ada file baru dipilih
+    // 1. Kompres & Upload Foto ke Supabase Storage
     const fotoFile = $("input-foto").files[0];
     if (fotoFile) {
       showLoading("Mengompres & mengunggah foto...");
       const compressedBlob = await compressImage(fotoFile, 1280, 0.7);
-      const fotoRef = ref(storage, `aset_foto/${kodeQR}_${Date.now()}.jpg`);
-      await uploadBytes(fotoRef, compressedBlob, { contentType: "image/jpeg" });
-      urlFoto = await getDownloadURL(fotoRef);
+      const fotoPath = `foto/${kodeQR}_${Date.now()}.jpg`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("aset-files")
+        .upload(fotoPath, compressedBlob, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: pubFoto } = supabase.storage
+        .from("aset-files")
+        .getPublicUrl(fotoPath);
+      urlFoto = pubFoto.publicUrl;
     }
 
-    // 2. Upload Dokumen jika ada file baru dipilih
+    // 2. Upload Dokumen ke Supabase Storage
     const dokFile = $("input-dokumen").files[0];
     if (dokFile) {
       showLoading("Mengunggah dokumen aset...");
       const safeName = dokFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const dokRef = ref(
-        storage,
-        `aset_dokumen/${kodeQR}_${Date.now()}_${safeName}`,
-      );
-      await uploadBytes(dokRef, dokFile);
-      urlDokumen = await getDownloadURL(dokRef);
+      const dokPath = `dokumen/${kodeQR}_${Date.now()}_${safeName}`;
+
+      const { error: dokErr } = await supabase.storage
+        .from("aset-files")
+        .upload(dokPath, dokFile, { upsert: true });
+
+      if (dokErr) throw dokErr;
+
+      const { data: pubDok } = supabase.storage
+        .from("aset-files")
+        .getPublicUrl(dokPath);
+      urlDokumen = pubDok.publicUrl;
     }
 
     const payload = {
-      kodeQR,
-      namaAset: $("input-nama-aset").value.trim(),
+      kode_qr: kodeQR,
+      nama_aset: $("input-nama-aset").value.trim(),
       kategori: $("input-kategori").value,
-      merkTipe: $("input-merk-tipe").value.trim(),
-      spesifikasiDetail: $("input-spesifikasi").value.trim(),
-      noSeriAtauMesin: $("input-no-seri").value.trim(),
-      platNomor: $("input-plat-nomor").value.trim().toUpperCase(),
-      tahunPembuatan: $("input-tahun").value.trim(),
-      tanggalBeli: $("input-tanggal-beli").value,
-      hargaPerolehan: Number($("input-harga").value) || 0,
-      batasGaransiAtauSTNK: $("input-garansi-stnk").value,
-      jadwalMaintenance: $("input-maintenance").value,
+      merk_tipe: $("input-merk-tipe").value.trim() || null,
+      spesifikasi_detail: $("input-spesifikasi").value.trim() || null,
+      no_seri_atau_mesin: $("input-no-seri").value.trim() || null,
+      plat_nomor: $("input-plat-nomor").value.trim().toUpperCase() || null,
+      tahun_pembuatan: $("input-tahun").value.trim() || null,
+      tanggal_beli: $("input-tanggal-beli").value || null,
+      harga_perolehan: Number($("input-harga").value) || 0,
+      batas_garansi_atau_stnk: $("input-garansi-stnk").value || null,
+      jadwal_maintenance: $("input-maintenance").value || null,
       lokasi: $("input-lokasi").value.trim(),
-      picPenanggungJawab: $("input-pic").value.trim(),
+      pic_penanggung_jawab: $("input-pic").value.trim(),
       kondisi: $("input-kondisi").value,
       status: $("input-status").value,
-      urlFoto,
-      urlDokumen,
-      catatan: $("input-catatan").value.trim(),
-      updatedAt: serverTimestamp(),
+      url_foto: urlFoto,
+      url_dokumen: urlDokumen,
+      catatan: $("input-catatan").value.trim() || null,
+      updated_at: new Date().toISOString(),
     };
 
     if (isEdit) {
-      await updateDoc(doc(db, "master_aset", docId), payload);
+      const { error: updErr } = await supabase
+        .from("master_aset")
+        .update(payload)
+        .eq("id", docId);
+      if (updErr) throw updErr;
 
-      await addDoc(collection(db, "log_aktivitas"), {
-        idAset: docId,
-        kodeQR: payload.kodeQR,
-        namaAset: payload.namaAset,
-        tanggal: serverTimestamp(),
-        jenisAktivitas: "Update Data",
-        lokasiLama: selectedAsset?.lokasi || "-",
-        lokasiBaru: payload.lokasi,
-        picLama: selectedAsset?.picPenanggungJawab || "-",
-        picBaru: payload.picPenanggungJawab,
+      await supabase.from("log_aktivitas").insert({
+        id_aset: docId,
+        kode_qr: payload.kode_qr,
+        nama_aset: payload.nama_aset,
+        jenis_aktivitas: "Update Data",
+        lokasi_lama: selectedAsset?.lokasi || "-",
+        lokasi_baru: payload.lokasi,
+        pic_lama: selectedAsset?.pic_penanggung_jawab || "-",
+        pic_baru: payload.pic_penanggung_jawab,
         kondisi: payload.kondisi,
         keterangan: "Pembaruan data master aset oleh Admin",
-        petugasNama: currentUser.namaLengkap,
-        petugasUid: currentUser.uid,
+        petugas_nama: currentUser.nama_lengkap,
+        petugas_uid: currentUser.uid,
       });
 
       showToast("Data aset berhasil diperbarui!");
       await loadAllData();
       switchView("aset");
     } else {
-      payload.createdAt = serverTimestamp();
-      payload.terakhirAudit = serverTimestamp();
+      const { data: inserted, error: insErr } = await supabase
+        .from("master_aset")
+        .insert(payload)
+        .select()
+        .single();
+      if (insErr) throw insErr;
 
-      const newDocRef = await addDoc(collection(db, "master_aset"), payload);
-
-      await addDoc(collection(db, "log_aktivitas"), {
-        idAset: newDocRef.id,
-        kodeQR: payload.kodeQR,
-        namaAset: payload.namaAset,
-        tanggal: serverTimestamp(),
-        jenisAktivitas: "Aset Baru",
-        lokasiLama: "-",
-        lokasiBaru: payload.lokasi,
-        picLama: "-",
-        picBaru: payload.picPenanggungJawab,
+      await supabase.from("log_aktivitas").insert({
+        id_aset: inserted.id,
+        kode_qr: payload.kode_qr,
+        nama_aset: payload.nama_aset,
+        jenis_aktivitas: "Aset Baru",
+        lokasi_lama: "-",
+        lokasi_baru: payload.lokasi,
+        pic_lama: "-",
+        pic_baru: payload.pic_penanggung_jawab,
         kondisi: payload.kondisi,
         keterangan: "Registrasi aset baru",
-        petugasNama: currentUser.namaLengkap,
-        petugasUid: currentUser.uid,
+        petugas_nama: currentUser.nama_lengkap,
+        petugas_uid: currentUser.uid,
       });
 
       showToast("Aset baru berhasil ditambahkan!");
       await loadAllData();
       switchView("aset");
-
-      // Tampilkan modal QR Code otomatis setelah simpan baru
-      openQRModal(payload.kodeQR, payload.namaAset);
+      openQRModal(payload.kode_qr, payload.nama_aset);
     }
   } catch (error) {
     console.error("Save asset error:", error);
@@ -813,7 +799,6 @@ function stopAllScanners() {
   stopFormScanner();
 }
 
-// Scanner 1: Halaman Scan Cepat
 $("btn-start-scan").addEventListener("click", () => {
   $("qr-reader").innerHTML = "";
   mainScanner = new Html5Qrcode("qr-reader");
@@ -849,7 +834,7 @@ $("btn-manual-lookup").addEventListener("click", () => {
 });
 
 function handleLookupQR(code) {
-  const found = allAssets.find((a) => a.kodeQR.toUpperCase() === code);
+  const found = allAssets.find((a) => a.kode_qr.toUpperCase() === code);
   if (found) {
     openDetailModal(found);
   } else {
@@ -857,7 +842,6 @@ function handleLookupQR(code) {
   }
 }
 
-// Scanner 2: Saat Tambah Aset (Scan Stiker QR yang sudah ada)
 $("btn-mode-manual").addEventListener("click", () => {
   stopFormScanner();
   $("input-kode-qr").value = "";
@@ -877,7 +861,7 @@ $("btn-mode-scan-qr").addEventListener("click", () => {
         stopFormScanner();
 
         const existing = allAssets.find(
-          (a) => a.kodeQR.toUpperCase() === scannedCode,
+          (a) => a.kode_qr.toUpperCase() === scannedCode,
         );
         if (existing) {
           showToast(
@@ -905,18 +889,17 @@ $("btn-close-form-scanner").addEventListener("click", stopFormScanner);
 async function openDetailModal(aset) {
   selectedAsset = aset;
 
-  $("detail-kode-qr").textContent = aset.kodeQR;
-  $("detail-nama-aset").textContent = aset.namaAset;
+  $("detail-kode-qr").textContent = aset.kode_qr;
+  $("detail-nama-aset").textContent = aset.nama_aset;
   $("detail-kategori").textContent = aset.kategori || "-";
-  $("detail-merk").textContent = aset.merkTipe || "-";
+  $("detail-merk").textContent = aset.merk_tipe || "-";
   $("detail-lokasi").textContent = aset.lokasi || "-";
-  $("detail-pic").textContent = aset.picPenanggungJawab || "-";
+  $("detail-pic").textContent = aset.pic_penanggung_jawab || "-";
   $("detail-kondisi").textContent = aset.kondisi || "-";
-  $("detail-audit").textContent = formatTimestamp(aset.terakhirAudit);
+  $("detail-audit").textContent = formatTimestamp(aset.terakhir_audit);
 
-  // Foto
-  if (aset.urlFoto) {
-    $("detail-foto").src = aset.urlFoto;
+  if (aset.url_foto) {
+    $("detail-foto").src = aset.url_foto;
     $("detail-foto").classList.remove("hidden");
     $("detail-no-foto").classList.add("hidden");
   } else {
@@ -924,43 +907,41 @@ async function openDetailModal(aset) {
     $("detail-no-foto").classList.remove("hidden");
   }
 
-  // Dokumen
-  if (aset.urlDokumen) {
-    $("detail-link-dokumen").href = aset.urlDokumen;
+  if (aset.url_dokumen) {
+    $("detail-link-dokumen").href = aset.url_dokumen;
     $("detail-link-dokumen").classList.remove("hidden");
   } else {
     $("detail-link-dokumen").classList.add("hidden");
   }
 
-  // Spesifikasi Tambahan Dinamis
   const specs = [];
-  if (aset.spesifikasiDetail)
+  if (aset.spesifikasi_detail)
     specs.push(
-      `<div><span class="text-slate-400">Spesifikasi:</span> <strong>${escapeHTML(aset.spesifikasiDetail)}</strong></div>`,
+      `<div><span class="text-slate-400">Spesifikasi:</span> <strong>${escapeHTML(aset.spesifikasi_detail)}</strong></div>`,
     );
-  if (aset.noSeriAtauMesin)
+  if (aset.no_seri_atau_mesin)
     specs.push(
-      `<div><span class="text-slate-400">No. Seri / Mesin:</span> <strong>${escapeHTML(aset.noSeriAtauMesin)}</strong></div>`,
+      `<div><span class="text-slate-400">No. Seri / Mesin:</span> <strong>${escapeHTML(aset.no_seri_atau_mesin)}</strong></div>`,
     );
-  if (aset.platNomor)
+  if (aset.plat_nomor)
     specs.push(
-      `<div><span class="text-slate-400">Plat Nomor:</span> <strong>${escapeHTML(aset.platNomor)}</strong></div>`,
+      `<div><span class="text-slate-400">Plat Nomor:</span> <strong>${escapeHTML(aset.plat_nomor)}</strong></div>`,
     );
-  if (aset.tahunPembuatan)
+  if (aset.tahun_pembuatan)
     specs.push(
-      `<div><span class="text-slate-400">Tahun:</span> <strong>${escapeHTML(aset.tahunPembuatan)}</strong></div>`,
+      `<div><span class="text-slate-400">Tahun:</span> <strong>${escapeHTML(aset.tahun_pembuatan)}</strong></div>`,
     );
-  if (aset.batasGaransiAtauSTNK)
+  if (aset.batas_garansi_atau_stnk)
     specs.push(
-      `<div><span class="text-slate-400">Batas Garansi/STNK:</span> <strong>${escapeHTML(aset.batasGaransiAtauSTNK)}</strong></div>`,
+      `<div><span class="text-slate-400">Batas Garansi/STNK:</span> <strong>${escapeHTML(aset.batas_garansi_atau_stnk)}</strong></div>`,
     );
-  if (aset.jadwalMaintenance)
+  if (aset.jadwal_maintenance)
     specs.push(
-      `<div><span class="text-slate-400">Jadwal Maintenance:</span> <strong>${escapeHTML(aset.jadwalMaintenance)}</strong></div>`,
+      `<div><span class="text-slate-400">Jadwal Maintenance:</span> <strong>${escapeHTML(aset.jadwal_maintenance)}</strong></div>`,
     );
-  if (currentUser.role === "Admin" && aset.hargaPerolehan) {
+  if (currentUser.role === "Admin" && aset.harga_perolehan) {
     specs.push(
-      `<div><span class="text-slate-400">Harga Perolehan:</span> <strong>${formatRupiah(aset.hargaPerolehan)}</strong></div>`,
+      `<div><span class="text-slate-400">Harga Perolehan:</span> <strong>${formatRupiah(aset.harga_perolehan)}</strong></div>`,
     );
   }
   if (aset.catatan)
@@ -973,7 +954,6 @@ async function openDetailModal(aset) {
       ? specs.join("")
       : '<p class="text-slate-400">Tidak ada rincian tambahan.</p>';
 
-  // Pre-fill form Stock Opname
   $("opname-kondisi").value = aset.kondisi || "Baik";
   $("opname-lokasi").value = aset.lokasi || "";
   $("opname-catatan").value = "";
@@ -981,7 +961,6 @@ async function openDetailModal(aset) {
   $("modal-detail").classList.remove("hidden");
   lucide.createIcons();
 
-  // Muat riwayat log aset ini
   await loadAssetLogs(aset.id);
 }
 
@@ -990,39 +969,38 @@ async function loadAssetLogs(asetId) {
   listEl.innerHTML = '<p class="text-slate-400">Memuat riwayat...</p>';
 
   try {
-    const q = query(
-      collection(db, "log_aktivitas"),
-      where("idAset", "==", asetId),
-      orderBy("tanggal", "desc"),
-      limit(10),
-    );
-    const snap = await getDocs(q);
+    const { data, error } = await supabase
+      .from("log_aktivitas")
+      .select("*")
+      .eq("id_aset", asetId)
+      .order("tanggal", { ascending: false })
+      .limit(10);
 
-    if (snap.empty) {
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
       listEl.innerHTML =
         '<p class="text-slate-400">Belum ada riwayat aktivitas.</p>';
       return;
     }
 
-    let html = "";
-    snap.forEach((d) => {
-      const l = d.data();
-      html += `
+    listEl.innerHTML = data
+      .map(
+        (l) => `
         <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700">
           <div class="flex justify-between font-semibold">
-            <span>${escapeHTML(l.jenisAktivitas)} (${escapeHTML(l.kondisi)})</span>
+            <span>${escapeHTML(l.jenis_aktivitas)} (${escapeHTML(l.kondisi)})</span>
             <span class="text-slate-400 font-normal">${formatTimestamp(l.tanggal)}</span>
           </div>
           <p class="text-slate-500 dark:text-slate-300 mt-0.5">${escapeHTML(l.keterangan || "-")}</p>
-          <p class="text-[11px] text-slate-400 mt-0.5">Oleh: ${escapeHTML(l.petugasNama)} • Lokasi: ${escapeHTML(l.lokasiBaru)}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Oleh: ${escapeHTML(l.petugas_nama)} • Lokasi: ${escapeHTML(l.lokasi_baru)}</p>
         </div>
-      `;
-    });
-    listEl.innerHTML = html;
+      `,
+      )
+      .join("");
   } catch (err) {
-    // Fallback jika composite index Firestore belum dibuat
     listEl.innerHTML =
-      '<p class="text-slate-400">Riwayat belum tersedia (memerlukan index Firestore).</p>';
+      '<p class="text-slate-400">Gagal memuat riwayat aktivitas.</p>';
   }
 }
 
@@ -1039,34 +1017,40 @@ $("opname-form").addEventListener("submit", async (e) => {
   const lokasiBaru = $("opname-lokasi").value.trim();
   const catatanAudit =
     $("opname-catatan").value.trim() || "Pengecekan fisik rutin";
+  const nowISO = new Date().toISOString();
 
   showLoading("Menyimpan hasil Stock Opname...");
 
   try {
-    const asetRef = doc(db, "master_aset", selectedAsset.id);
-    await updateDoc(asetRef, {
-      kondisi: kondisiBaru,
-      lokasi: lokasiBaru,
-      catatan: catatanAudit,
-      terakhirAudit: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    const { error: updErr } = await supabase
+      .from("master_aset")
+      .update({
+        kondisi: kondisiBaru,
+        lokasi: lokasiBaru,
+        catatan: catatanAudit,
+        terakhir_audit: nowISO,
+        updated_at: nowISO,
+      })
+      .eq("id", selectedAsset.id);
 
-    await addDoc(collection(db, "log_aktivitas"), {
-      idAset: selectedAsset.id,
-      kodeQR: selectedAsset.kodeQR,
-      namaAset: selectedAsset.namaAset,
-      tanggal: serverTimestamp(),
-      jenisAktivitas: "Stock Opname",
-      lokasiLama: selectedAsset.lokasi || "-",
-      lokasiBaru: lokasiBaru,
-      picLama: selectedAsset.picPenanggungJawab || "-",
-      picBaru: selectedAsset.picPenanggungJawab || "-",
+    if (updErr) throw updErr;
+
+    const { error: logErr } = await supabase.from("log_aktivitas").insert({
+      id_aset: selectedAsset.id,
+      kode_qr: selectedAsset.kode_qr,
+      nama_aset: selectedAsset.nama_aset,
+      jenis_aktivitas: "Stock Opname",
+      lokasi_lama: selectedAsset.lokasi || "-",
+      lokasi_baru: lokasiBaru,
+      pic_lama: selectedAsset.pic_penanggung_jawab || "-",
+      pic_baru: selectedAsset.pic_penanggung_jawab || "-",
       kondisi: kondisiBaru,
       keterangan: catatanAudit,
-      petugasNama: currentUser.namaLengkap,
-      petugasUid: currentUser.uid,
+      petugas_nama: currentUser.nama_lengkap,
+      petugas_uid: currentUser.uid,
     });
+
+    if (logErr) throw logErr;
 
     showToast("Stock Opname berhasil dicatat!");
     $("modal-detail").classList.add("hidden");
@@ -1090,35 +1074,35 @@ $("btn-edit-aset").addEventListener("click", () => {
   $("add-mode-selector").classList.add("hidden");
   $("aset-doc-id").value = selectedAsset.id;
 
-  $("input-kode-qr").value = selectedAsset.kodeQR;
+  $("input-kode-qr").value = selectedAsset.kode_qr;
   $("input-kode-qr").readOnly = true;
   $("input-kategori").value = selectedAsset.kategori || "Peralatan IT";
   updateDynamicFormFields();
 
-  $("input-nama-aset").value = selectedAsset.namaAset || "";
-  $("input-merk-tipe").value = selectedAsset.merkTipe || "";
-  $("input-spesifikasi").value = selectedAsset.spesifikasiDetail || "";
-  $("input-no-seri").value = selectedAsset.noSeriAtauMesin || "";
-  $("input-plat-nomor").value = selectedAsset.platNomor || "";
-  $("input-tahun").value = selectedAsset.tahunPembuatan || "";
-  $("input-tanggal-beli").value = selectedAsset.tanggalBeli || "";
-  $("input-harga").value = selectedAsset.hargaPerolehan || "";
-  $("input-garansi-stnk").value = selectedAsset.batasGaransiAtauSTNK || "";
-  $("input-maintenance").value = selectedAsset.jadwalMaintenance || "";
+  $("input-nama-aset").value = selectedAsset.nama_aset || "";
+  $("input-merk-tipe").value = selectedAsset.merk_tipe || "";
+  $("input-spesifikasi").value = selectedAsset.spesifikasi_detail || "";
+  $("input-no-seri").value = selectedAsset.no_seri_atau_mesin || "";
+  $("input-plat-nomor").value = selectedAsset.plat_nomor || "";
+  $("input-tahun").value = selectedAsset.tahun_pembuatan || "";
+  $("input-tanggal-beli").value = selectedAsset.tanggal_beli || "";
+  $("input-harga").value = selectedAsset.harga_perolehan || "";
+  $("input-garansi-stnk").value = selectedAsset.batas_garansi_atau_stnk || "";
+  $("input-maintenance").value = selectedAsset.jadwal_maintenance || "";
   $("input-lokasi").value = selectedAsset.lokasi || "";
-  $("input-pic").value = selectedAsset.picPenanggungJawab || "";
+  $("input-pic").value = selectedAsset.pic_penanggung_jawab || "";
   $("input-kondisi").value = selectedAsset.kondisi || "Baik";
   $("input-status").value = selectedAsset.status || "Aktif";
   $("input-catatan").value = selectedAsset.catatan || "";
 
-  if (selectedAsset.urlFoto) {
-    $("preview-foto").src = selectedAsset.urlFoto;
+  if (selectedAsset.url_foto) {
+    $("preview-foto").src = selectedAsset.url_foto;
     $("preview-foto").classList.remove("hidden");
   } else {
     $("preview-foto").classList.add("hidden");
   }
 
-  if (selectedAsset.urlDokumen) {
+  if (selectedAsset.url_dokumen) {
     $("existing-dokumen-info").textContent =
       "Dokumen tersimpan (unggah baru untuk mengganti)";
     $("existing-dokumen-info").classList.remove("hidden");
@@ -1132,13 +1116,19 @@ $("btn-delete-aset").addEventListener("click", async () => {
   if (currentUser?.role !== "Admin" || !selectedAsset) return;
 
   const yakin = confirm(
-    `Hapus permanen aset "${selectedAsset.namaAset}" (${selectedAsset.kodeQR})?`,
+    `Hapus permanen aset "${selectedAsset.nama_aset}" (${selectedAsset.kode_qr})?`,
   );
   if (!yakin) return;
 
   showLoading("Menghapus aset...");
   try {
-    await deleteDoc(doc(db, "master_aset", selectedAsset.id));
+    const { error } = await supabase
+      .from("master_aset")
+      .delete()
+      .eq("id", selectedAsset.id);
+
+    if (error) throw error;
+
     showToast("Aset berhasil dihapus.");
     $("modal-detail").classList.add("hidden");
     await loadAllData();
@@ -1172,7 +1162,7 @@ function openQRModal(kodeQR, namaAset) {
 
 $("btn-reprint-qr").addEventListener("click", () => {
   if (selectedAsset) {
-    openQRModal(selectedAsset.kodeQR, selectedAsset.namaAset);
+    openQRModal(selectedAsset.kode_qr, selectedAsset.nama_aset);
   }
 });
 
@@ -1233,20 +1223,20 @@ $("btn-export-csv")?.addEventListener("click", () => {
   ];
 
   const rows = data.map((a) => [
-    a.kodeQR,
-    a.namaAset,
+    a.kode_qr,
+    a.nama_aset,
     a.kategori,
-    a.merkTipe,
-    a.spesifikasiDetail,
-    a.noSeriAtauMesin,
-    a.platNomor,
-    a.tahunPembuatan,
-    a.tanggalBeli,
-    a.hargaPerolehan,
-    a.batasGaransiAtauSTNK,
-    a.jadwalMaintenance,
+    a.merk_tipe,
+    a.spesifikasi_detail,
+    a.no_seri_atau_mesin,
+    a.plat_nomor,
+    a.tahun_pembuatan,
+    a.tanggal_beli,
+    a.harga_perolehan,
+    a.batas_garansi_atau_stnk,
+    a.jadwal_maintenance,
     a.lokasi,
-    a.picPenanggungJawab,
+    a.pic_penanggung_jawab,
     a.kondisi,
     a.status,
     a.catatan,
