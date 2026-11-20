@@ -1,941 +1,1281 @@
-/* ============================================================
-   app.js — Logika Frontend Sistem Manajemen Aset
-   ============================================================ */
+// app.js
+import { auth, db, storage } from "./firebase-config.js";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-storage.js";
 
-// ---------- STATE ----------
-const state = {
-  apiUrl:
-    localStorage.getItem("apiUrl") ||
-    "https://script.google.com/macros/s/AKfycbzGewWP1Q868Txniv1_n4v2luC9F1RcAJKyFbhcCBqDWjWgrkjuSoeKVA9M9vxmoQws/exec",
-  token: localStorage.getItem("token") || "",
-  user: JSON.parse(localStorage.getItem("user") || "null"),
-  currentPage: "home",
-  assets: [],
-  pagination: { page: 1, pageSize: 20, total: 0 },
-  filters: { search: "", kategori: "", kondisi: "", status: "" },
-  references: { kategori: [], lokasi: [], kondisi: [], status: [] },
-  selectedAsset: null,
-  formMode: "manual", // 'manual' | 'scan'
-  editingId: null,
-  qrScanner: null,
-  scanTarget: "list", // 'list' | 'form'
-};
+// ==========================================
+// GLOBAL STATE
+// ==========================================
+let currentUser = null; // { uid, email, namaLengkap, role }
+let allAssets = []; // Cache daftar aset dari Firestore
+let selectedAsset = null; // Aset yang sedang dibuka di modal detail
+let mainScanner = null; // Instance html5-qrcode untuk menu Scan Cepat
+let formScanner = null; // Instance html5-qrcode untuk form Tambah Aset
 
-const ADMIN_ROLE = "Admin";
-const MAX_IMG_SIZE = 1280;
-const JPEG_QUALITY = 0.7;
+// ==========================================
+// UTILITY & HELPER FUNCTIONS
+// ==========================================
+const $ = (id) => document.getElementById(id);
 
-// ---------- DOM HELPER ----------
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+function showLoading(text = "Memproses data...") {
+  $("loading-text").textContent = text;
+  $("loading-overlay").classList.remove("hidden");
+}
 
-// ============================================================
-// 1. API LAYER (fetch ke GAS — text/plain untuk hindari CORS preflight)
-// ============================================================
-async function api(action, data = {}) {
-  if (!state.apiUrl) throw new Error("URL API belum diisi.");
-  showLoading(true);
-  try {
-    const res = await fetch(state.apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action, token: state.token, ...data }),
-    });
-    const json = await res.json();
-    if (json.success === false && json.code === 401) {
-      handleSessionExpired();
-    }
-    return json;
-  } catch (err) {
-    return {
-      success: false,
-      message: "Gagal terhubung ke server: " + err.message,
-    };
-  } finally {
-    showLoading(false);
+function hideLoading() {
+  $("loading-overlay").classList.add("hidden");
+}
+
+function showToast(message, type = "success") {
+  const container = $("toast-container");
+  const toast = document.createElement("div");
+  const bgClass =
+    type === "error"
+      ? "bg-red-600 text-white"
+      : type === "warning"
+        ? "bg-amber-500 text-white"
+        : "bg-slate-800 dark:bg-slate-700 text-white";
+
+  toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-lg text-xs font-medium pointer-events-auto transition-all duration-300 transform translate-y-0 opacity-100`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("opacity-0", "-translate-y-2");
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
+// Sanitasi teks mencegah XSS saat menyusun HTML
+function escapeHTML(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatRupiah(angka) {
+  const num = Number(angka) || 0;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(num);
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return "-";
+  const date = ts.toDate ? ts.toDate() : new Date(ts);
+  if (isNaN(date.getTime())) return String(ts);
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function generateAutoQR() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let rand = "";
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+  return `AST-${y}${m}${d}-${rand}`;
 }
 
-async function apiLogin(username, password) {
-  if (!state.apiUrl) throw new Error("URL API belum diisi.");
-  showLoading(true);
-  try {
-    const res = await fetch(state.apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "login", username, password }),
-    });
-    return await res.json();
-  } finally {
-    showLoading(false);
-  }
-}
-
-// ============================================================
-// 2. TEMA (DARK / LIGHT)
-// ============================================================
-function initTheme() {
-  const saved = localStorage.getItem("theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  applyTheme(saved || (prefersDark ? "dark" : "light"), false);
-
-  // Ikuti perubahan OS jika pengguna belum memilih manual
-  window
-    .matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", (e) => {
-      if (!localStorage.getItem("theme"))
-        applyTheme(e.matches ? "dark" : "light", false);
-    });
-}
-
-function applyTheme(theme, persist = true) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  if (persist) localStorage.setItem("theme", theme);
-  $$(".icon-sun").forEach((el) =>
-    el.classList.toggle("hidden", theme !== "dark"),
-  );
-  $$(".icon-moon").forEach((el) =>
-    el.classList.toggle("hidden", theme === "dark"),
-  );
-}
-
-function toggleTheme() {
-  const isDark = document.documentElement.classList.contains("dark");
-  applyTheme(isDark ? "light" : "dark");
-}
-
-// ============================================================
-// 3. NAVIGASI & ROUTING HALAMAN
-// ============================================================
-function showPage(name) {
-  if (!state.token && name !== "login") name = "login";
-  state.currentPage = name;
-
-  $$(".page").forEach((p) => p.classList.add("hidden"));
-  const page = $(`#page-${name}`);
-  if (page) page.classList.remove("hidden");
-
-  // Highlight menu aktif
-  $$("[data-nav]").forEach((b) =>
-    b.classList.toggle("active", b.dataset.nav === name),
-  );
-
-  // Navbar hanya tampil saat login
-  const loggedIn = !!state.token;
-  $("#topNav").classList.toggle("hidden", !loggedIn);
-  $("#bottomNav").classList.toggle("hidden", !loggedIn);
-  if (loggedIn) {
-    $("#topNav").classList.add("md:flex");
-    $("#bottomNav").classList.add("md:hidden");
-  }
-
-  // Muat data halaman
-  switch (name) {
-    case "home":
-      loadDashboard();
-      break;
-    case "scan":
-      break;
-    case "assets":
-      loadAssets();
-      break;
-    case "logs":
-      loadLogs();
-      break;
-    case "users":
-      loadUsers();
-      break;
-    case "ref":
-      loadReferences(true);
-      break;
-    case "profile":
-      renderProfile();
-      break;
-  }
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function bindNavigation() {
-  $$("[data-nav]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.adminOnly === "true" && !isAdmin())
-        return toast("Akses khusus Admin", "error");
-      if (btn.dataset.nav === "scan") stopScanner(); // reset scanner saat pindah
-      showPage(btn.dataset.nav);
-    });
-  });
-}
-
-// ============================================================
-// 4. AUTENTIKASI
-// ============================================================
-function isAdmin() {
-  return state.user && state.user.role === ADMIN_ROLE;
-}
-
-function applyRoleUI() {
-  document.body.classList.toggle("is-staff", !isAdmin());
-}
-
-function saveSession(token, user) {
-  state.token = token;
-  state.user = user;
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(user));
-  localStorage.setItem("apiUrl", state.apiUrl);
-  applyRoleUI();
-}
-
-function clearSession() {
-  state.token = "";
-  state.user = null;
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-}
-
-async function handleLogin(e) {
-  e.preventDefault();
-  const apiUrl = $("#apiUrl").value.trim();
-  const username = $("#loginUser").value.trim();
-  const password = $("#loginPass").value;
-  const errEl = $("#loginError");
-  errEl.classList.add("hidden");
-
-  state.apiUrl = apiUrl;
-  localStorage.setItem("apiUrl", apiUrl);
-
-  const res = await apiLogin(username, password);
-  if (!res.success) {
-    errEl.textContent = res.message || "Login gagal.";
-    errEl.classList.remove("hidden");
-    return;
-  }
-  saveSession(res.token, res.data);
-  toast("Selamat datang, " + res.data.nama);
-  showPage("home");
-}
-
-async function handleLogout() {
-  if (state.token) await api("logout");
-  clearSession();
-  toast("Anda telah keluar.");
-  showPage("login");
-}
-
-function handleSessionExpired() {
-  clearSession();
-  toast("Sesi berakhir, silakan login kembali.", "error");
-  showPage("login");
-}
-
-function renderProfile() {
-  if (!state.user) return;
-  $("#profName").textContent = state.user.nama;
-  $("#profUser").textContent = state.user.username;
-  $("#profRole").textContent = state.user.role;
-}
-
-async function handleChangePassword(e) {
-  e.preventDefault();
-  const res = await api("changePassword", {
-    data: {
-      oldPassword: $("#oldPass").value,
-      newPassword: $("#newPass").value,
-    },
-  });
-  toast(res.message, res.success ? "success" : "error");
-  if (res.success) $("#changePassForm").reset();
-}
-
-// ============================================================
-// 5. DASHBOARD
-// ============================================================
-async function loadDashboard() {
-  const res = await api("getAssets", { pageSize: 500 });
-  if (!res.success) return;
-  const items = res.data;
-  $("#statTotal").textContent = items.length;
-  $("#statAktif").textContent = items.filter(
-    (a) => a.Status === "Aktif",
-  ).length;
-  $("#statMaint").textContent = items.filter(
-    (a) => a.Status === "Maintenance",
-  ).length;
-  $("#statRusak").textContent = items.filter((a) =>
-    String(a.Kondisi).startsWith("Rusak"),
-  ).length;
-
-  const logs = await api("getLogs", { limit: 5 });
-  const ul = $("#recentLogs");
-  ul.innerHTML = "";
-  (logs.data || []).forEach((l) => {
-    const li = document.createElement("li");
-    li.className = "py-2 flex justify-between gap-2";
-    li.innerHTML = `<span><strong>${escapeHtml(l.Nama_Aset)}</strong> — ${escapeHtml(l.Jenis_Aktivitas)}</span>
-                    <span class="text-gray-500 text-xs">${formatDate(l.Tanggal)}</span>`;
-    ul.appendChild(li);
-  });
-}
-
-// ============================================================
-// 6. DAFTAR ASET
-// ============================================================
-async function loadAssets() {
-  const params = {
-    search: $("#searchAsset").value.trim(),
-    kategori: $("#filterKategori").value,
-    kondisi: $("#filterKondisi").value,
-    status: $("#filterStatus").value,
-    page: state.pagination.page,
-    pageSize: state.pagination.pageSize,
-  };
-  const res = await api("getAssets", params);
-  if (!res.success) return toast(res.message, "error");
-
-  state.assets = res.data;
-  state.pagination = { ...state.pagination, total: res.pagination.total };
-  renderAssetTable();
-  $("#pageInfo").textContent =
-    `Halaman ${state.pagination.page} · Total ${state.pagination.total}`;
-}
-
-function renderAssetTable() {
-  const tbody = $("#assetTableBody");
-  tbody.innerHTML = "";
-  if (!state.assets.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="td text-center text-gray-500">Tidak ada data aset.</td></tr>`;
-    return;
-  }
-  state.assets.forEach((a) => {
-    const tr = document.createElement("tr");
-    tr.className = "hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer";
-    tr.innerHTML = `
-      <td class="td font-mono text-xs">${escapeHtml(a.Kode_QR)}</td>
-      <td class="td">${escapeHtml(a.Nama_Aset)}</td>
-      <td class="td">${escapeHtml(a.Kategori)}</td>
-      <td class="td">${escapeHtml(a.Lokasi)}</td>
-      <td class="td">${escapeHtml(a.Kondisi)}</td>
-      <td class="td"><span class="badge">${escapeHtml(a.Status)}</span></td>
-      <td class="td"><button class="btn-secondary text-xs px-2 py-1" data-detail="${escapeHtml(a.ID_Aset)}">Detail</button></td>`;
-    tr.addEventListener("click", (e) => {
-      if (e.target.closest("button") || true) openAssetDetail(a.Kode_QR);
-    });
-    tbody.appendChild(tr);
-  });
-}
-
-function bindAssetList() {
-  let timer;
-  $("#searchAsset").addEventListener("input", () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      state.pagination.page = 1;
-      loadAssets();
-    }, 400);
-  });
-  ["#filterKategori", "#filterKondisi", "#filterStatus"].forEach((sel) =>
-    $(sel).addEventListener("change", () => {
-      state.pagination.page = 1;
-      loadAssets();
-    }),
-  );
-  $("#prevPage").addEventListener("click", () => {
-    if (state.pagination.page > 1) {
-      state.pagination.page--;
-      loadAssets();
-    }
-  });
-  $("#nextPage").addEventListener("click", () => {
-    const max = Math.ceil(state.pagination.total / state.pagination.pageSize);
-    if (state.pagination.page < max) {
-      state.pagination.page++;
-      loadAssets();
-    }
-  });
-  $("#btnAddAsset").addEventListener("click", () => openAssetForm());
-}
-
-// ============================================================
-// 7. DETAIL ASET (MODAL) + STOCK OPNAME + PERGERAKAN
-// ============================================================
-async function openAssetDetail(kodeQr) {
-  const res = await api("getAssetByCode", { kodeQr });
-  if (!res.success) return toast(res.message, "error");
-  state.selectedAsset = res.data;
-
-  const a = res.data;
-  $("#modalTitle").textContent = a.Nama_Aset;
-  $("#modalBody").innerHTML = `
-    <div class="grid grid-cols-2 gap-3">
-      ${detailRow("Kode QR", a.Kode_QR)}
-      ${detailRow("Kategori", a.Kategori)}
-      ${detailRow("Merk / Tipe", a.Merk_Tipe)}
-      ${detailRow("Spesifikasi", a.Spesifikasi_Detail)}
-      ${detailRow("No. Seri / Mesin", a.No_Seri_atau_Mesin)}
-      ${detailRow("Plat Nomor", a.Plat_Nomor)}
-      ${detailRow("Tahun", a.Tahun_Pembuatan)}
-      ${detailRow("Tanggal Beli", formatDate(a.Tanggal_Beli))}
-      ${detailRow("Harga", formatRupiah(a.Harga_Perolehan))}
-      ${detailRow("Garansi / STNK", formatDate(a.Batas_Garansi_atau_STNK))}
-      ${detailRow("Jadwal Maintenance", formatDate(a.Jadwal_Maintenance))}
-      ${detailRow("Lokasi", a.Lokasi)}
-      ${detailRow("PIC", a.PIC_Penanggung_Jawab)}
-      ${detailRow("Kondisi", a.Kondisi)}
-      ${detailRow("Status", a.Status)}
-      ${detailRow("Terakhir Audit", formatDate(a.Terakhir_Audit))}
-    </div>
-    ${a.Link_Foto ? `<a href="${a.Link_Foto}" target="_blank" class="text-blue-600 underline">Lihat Foto</a>` : ""}
-    ${a.Link_Dokumen ? `<a href="${a.Link_Dokumen}" target="_blank" class="text-blue-600 underline ml-3">Lihat Dokumen</a>` : ""}
-    <p class="text-gray-500">${escapeHtml(a.Catatan || "")}</p>`;
-
-  $("#assetModal").classList.add("open");
-  $("#assetModal").classList.remove("hidden");
-  applyRoleUI();
-}
-
-function detailRow(label, value) {
-  return `<div><p class="text-xs text-gray-500">${label}</p><p class="font-medium break-words">${escapeHtml(String(value ?? "-")) || "-"}</p></div>`;
-}
-
-function closeModal() {
-  $("#assetModal").classList.remove("open");
-  $("#assetModal").classList.add("hidden");
-  state.selectedAsset = null;
-}
-
-async function handleStockOpname() {
-  const a = state.selectedAsset;
-  if (!a) return;
-  const kondisi = prompt(
-    `Kondisi terkini untuk "${a.Nama_Aset}"?\n(Baik / Rusak Ringan / Rusak Berat)`,
-    a.Kondisi,
-  );
-  if (kondisi === null) return;
-  const keterangan = prompt("Catatan opname (opsional):", "Audit rutin") || "";
-  const res = await api("stockOpname", {
-    kodeQr: a.Kode_QR,
-    kondisi,
-    keterangan,
-  });
-  toast(res.message, res.success ? "success" : "error");
-  if (res.success) openAssetDetail(a.Kode_QR);
-}
-
-async function handleMoveAsset() {
-  const a = state.selectedAsset;
-  if (!a) return;
-  const lokasiBaru = prompt(`Pindah "${a.Nama_Aset}" ke lokasi:`, a.Lokasi);
-  if (lokasiBaru === null) return;
-  const picBaru =
-    prompt("PIC baru:", a.PIC_Penanggung_Jawab) ?? a.PIC_Penanggung_Jawab;
-  const res = await api("moveAsset", {
-    kodeQr: a.Kode_QR,
-    lokasiBaru,
-    picBaru,
-  });
-  toast(res.message, res.success ? "success" : "error");
-  if (res.success) openAssetDetail(a.Kode_QR);
-}
-
-async function handleDeleteAsset() {
-  const a = state.selectedAsset;
-  if (!a || !confirm(`Arsipkan aset "${a.Nama_Aset}"?`)) return;
-  const res = await api("deleteAsset", { ID_Aset: a.ID_Aset });
-  toast(res.message, res.success ? "success" : "error");
-  if (res.success) {
-    closeModal();
-    loadAssets();
-  }
-}
-
-function printQrLabel() {
-  const a = state.selectedAsset;
-  if (!a) return;
-  let area = $("#printArea");
-  if (!area) {
-    area = document.createElement("div");
-    area.id = "printArea";
-    document.body.appendChild(area);
-  }
-  area.innerHTML = `
-    <div class="qr-label">
-      <div id="qrPrint-${a.ID_Aset}"></div>
-      <div class="qr-title">${escapeHtml(a.Nama_Aset)}</div>
-      <div class="qr-code">${escapeHtml(a.Kode_QR)}</div>
-    </div>`;
-  new QRCode(document.getElementById(`qrPrint-${a.ID_Aset}`), {
-    text: a.Kode_QR,
-    width: 110,
-    height: 110,
-    correctLevel: QRCode.CorrectLevel.M,
-  });
-  setTimeout(() => window.print(), 300);
-}
-
-// ============================================================
-// 8. FORM ASET (TAMBAH / EDIT) — Mode Manual & Scan QR
-// ============================================================
-function openAssetForm(asset = null) {
-  state.editingId = asset ? asset.ID_Aset : null;
-  $("#formTitle").textContent = asset ? "Edit Aset" : "Tambah Aset";
-  const form = $("#assetForm");
-  form.reset();
-  form.ID_Aset.value = asset ? asset.ID_Aset : "";
-
-  if (asset) {
-    Object.keys(asset).forEach((k) => {
-      const el = form.elements[k];
-      if (el && el.type !== "file") el.value = formatInputValue(el, asset[k]);
-    });
-  }
-  setFormMode("manual");
-  showPage("asset-form");
-  // showPage memanggil fungsi load; halaman form tidak punya loader → tidak masalah
-}
-
-function setFormMode(mode) {
-  state.formMode = mode;
-  $("#modeManual").className =
-    mode === "manual" ? "btn-primary flex-1" : "btn-secondary flex-1";
-  $("#modeScan").className =
-    mode === "scan" ? "btn-primary flex-1" : "btn-secondary flex-1";
-  $("#qrCodeWrap").classList.toggle("hidden", mode === "scan" && false);
-  if (mode === "manual") {
-    $("#assetForm").Kode_QR.placeholder = "Kosongkan untuk auto-generate";
-  } else {
-    $("#assetForm").Kode_QR.placeholder = 'Klik "Scan Kode" untuk memindai';
-  }
-}
-
-function formatInputValue(el, value) {
-  if (el.type === "date" && value) {
-    const d = new Date(value);
-    if (!isNaN(d)) return d.toISOString().slice(0, 10);
-  }
-  return value ?? "";
-}
-
-function populateFormSelects() {
-  const form = $("#assetForm");
-  fillSelect(form.Kategori, state.references.kategori, true);
-  fillSelect(form.Lokasi, state.references.lokasi);
-  fillSelect(form.Kondisi, state.references.kondisi);
-  fillSelect(form.Status, state.references.status);
-}
-
-function fillSelect(select, options, placeholder = false) {
-  select.innerHTML = placeholder ? '<option value="">-- Pilih --</option>' : "";
-  options.forEach((o) => {
-    const opt = document.createElement("option");
-    opt.value = o;
-    opt.textContent = o;
-    select.appendChild(opt);
-  });
-}
-
-/** Sembunyikan/tampilkan field berdasarkan kategori terpilih. */
-function applyDynamicFields() {
-  const kategori = $("#assetForm").Kategori.value;
-  $$(".field-dynamic").forEach((wrap) => {
-    const hideFor = wrap.dataset.hideFor;
-    const onlyFor = wrap.dataset.onlyFor;
-    let show = true;
-    if (hideFor && kategori === hideFor) show = false;
-    if (onlyFor && kategori !== onlyFor) show = false;
-    wrap.classList.toggle("field-hidden", !show);
-    // Kosongkan nilai agar tidak terkirim saat tersembunyi
-    wrap.querySelectorAll("input, select, textarea").forEach((i) => {
-      if (!show) i.value = "";
-    });
-  });
-}
-
-/** Kompresi gambar via Canvas → Base64 (max 1280px, quality 0.7). */
-function compressImage(file) {
+// Kompresi gambar di sisi browser sebelum upload ke Firebase Storage
+function compressImage(file, maxWidth = 1280, quality = 0.7) {
   return new Promise((resolve, reject) => {
-    if (!file) return resolve(null);
-    if (!file.type.startsWith("image/")) return resolve(fileToBase64(file)); // PDF: kirim apa adanya
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const ratio = Math.min(
-          1,
-          MAX_IMG_SIZE / Math.max(img.width, img.height),
-        );
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * ratio);
-        canvas.height = Math.round(img.height * ratio);
-        canvas
-          .getContext("2d")
-          .drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve({
-          base64: canvas.toDataURL("image/jpeg", JPEG_QUALITY),
-          name: file.name,
-        });
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
     reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Gagal mengompres gambar"));
+          },
+          "image/jpeg",
+          quality,
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
   });
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve({ base64: r.result, name: file.name });
-    r.onerror = reject;
-    r.readAsDataURL(file);
+// ==========================================
+// DARK / LIGHT MODE CONTROLLER
+// ==========================================
+function initThemeToggle() {
+  document.querySelectorAll(".btn-toggle-theme").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+    });
   });
 }
 
-async function handleAssetSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const payload = {};
-  Array.from(form.elements).forEach((el) => {
-    if (!el.name || el.type === "file" || el.closest(".field-hidden")) return;
-    payload[el.name] = el.value;
-  });
-
-  // Kompres file bila ada
-  const foto = form.foto.files[0];
-  const dok = form.dokumen.files[0];
-  if (foto) {
-    const c = await compressImage(foto);
-    payload.fotoBase64 = c.base64;
-    payload.fotoName = c.name;
-  }
-  if (dok) {
-    const c = await compressImage(dok);
-    payload.dokBase64 = c.base64;
-    payload.dokName = c.name;
-  }
-
-  // Aksi: create atau update
-  const action = state.editingId ? "updateAsset" : "createAsset";
-  const body = state.editingId
-    ? { ...payload, ID_Aset: state.editingId }
-    : { data: payload };
-  const res = await api(action, state.editingId ? { data: body } : body);
-  toast(res.message, res.success ? "success" : "error");
-
-  if (res.success) {
-    state.editingId = null;
-    showPage("assets");
-  }
-}
-
-// ============================================================
-// 9. SCAN QR (Kamera via html5-qrcode)
-// ============================================================
-async function startScanner(target = "list") {
-  if (state.qrScanner) return;
-  state.scanTarget = target;
-  const Html5Qrcode = window.Html5Qrcode;
-  state.qrScanner = new Html5Qrcode("qrReader");
-  try {
-    await state.qrScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      onQrSuccess,
-      () => {},
-    );
-    $("#btnStartScan").classList.add("hidden");
-    $("#btnStopScan").classList.remove("hidden");
-  } catch (err) {
-    toast("Kamera tidak dapat diakses: " + err, "error");
-    state.qrScanner = null;
-  }
-}
-
-async function stopScanner() {
-  if (!state.qrScanner) return;
-  try {
-    await state.qrScanner.stop();
-    await state.qrScanner.clear();
-  } catch (_) {}
-  state.qrScanner = null;
-  $("#btnStartScan").classList.remove("hidden");
-  $("#btnStopScan").classList.add("hidden");
-}
-
-async function onQrSuccess(decodedText) {
-  await stopScanner();
-  if (state.scanTarget === "form") {
-    $("#assetForm").Kode_QR.value = decodedText.trim();
-    toast("Kode QR terbaca: " + decodedText);
+// ==========================================
+// AUTHENTICATION & RBAC
+// ==========================================
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    currentUser = null;
+    stopAllScanners();
+    $("app-section").classList.add("hidden");
+    $("login-section").classList.remove("hidden");
     return;
   }
-  // Mode scan cepat: tampilkan detail aset
-  openAssetDetail(decodedText.trim());
+
+  showLoading("Memverifikasi akun...");
+  try {
+    const userDocRef = doc(db, "users", user.uid);
+    const userSnap = await getDoc(userDocRef);
+
+    if (!userSnap.exists()) {
+      await signOut(auth);
+      showToast("Profil user tidak ditemukan di database.", "error");
+      return;
+    }
+
+    const userData = userSnap.data();
+    if (userData.statusAktif !== true) {
+      await signOut(auth);
+      showToast("Akun Anda telah dinonaktifkan oleh Admin.", "error");
+      return;
+    }
+
+    currentUser = {
+      uid: user.uid,
+      email: user.email,
+      namaLengkap: userData.namaLengkap || user.email,
+      role: userData.role || "Staff",
+    };
+
+    setupUIByRole();
+    $("login-section").classList.add("hidden");
+    $("app-section").classList.remove("hidden");
+
+    await loadAllData();
+
+    // Routing awal sesuai role
+    if (currentUser.role === "Admin") {
+      switchView("dashboard");
+    } else {
+      switchView("scan");
+    }
+  } catch (error) {
+    console.error("Auth error:", error);
+    showToast("Gagal memuat sesi pengguna: " + error.message, "error");
+  } finally {
+    hideLoading();
+  }
+});
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("login-email").value.trim();
+  const password = $("login-password").value;
+  const errBox = $("login-error");
+
+  errBox.classList.add("hidden");
+  showLoading("Sedang masuk...");
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    $("login-form").reset();
+  } catch (error) {
+    errBox.textContent = "Email atau password salah, atau jaringan bermasalah.";
+    errBox.classList.remove("hidden");
+  } finally {
+    hideLoading();
+  }
+});
+
+document.querySelectorAll(".btn-logout").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    stopAllScanners();
+    await signOut(auth);
+    showToast("Anda telah keluar dari sistem.");
+  });
+});
+
+function setupUIByRole() {
+  const isAdmin = currentUser.role === "Admin";
+
+  // Update info user di Desktop & Mobile header
+  $("desktop-user-name").textContent = currentUser.namaLengkap;
+  $("desktop-user-role").textContent = currentUser.role;
+  $("mobile-user-info").textContent =
+    `${currentUser.namaLengkap} (${currentUser.role})`;
+
+  // Tampilkan/sembunyikan elemen khusus Admin
+  document.querySelectorAll(".admin-only").forEach((el) => {
+    if (isAdmin) {
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+  });
 }
 
-function bindScan() {
-  $("#btnStartScan").addEventListener("click", () => startScanner("list"));
-  $("#btnStopScan").addEventListener("click", stopScanner);
-  $("#manualScanForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const code = $("#manualCode").value.trim();
-    if (code) openAssetDetail(code);
+// ==========================================
+// NAVIGATION & VIEW SWITCHER
+// ==========================================
+function switchView(viewName) {
+  // Cegah Staff mengakses view khusus Admin
+  if (
+    currentUser?.role !== "Admin" &&
+    (viewName === "dashboard" || viewName === "form")
+  ) {
+    viewName = "scan";
+  }
+
+  // Matikan kamera jika pindah dari halaman scan/form
+  if (viewName !== "scan") stopMainScanner();
+  if (viewName !== "form") stopFormScanner();
+
+  document
+    .querySelectorAll(".app-view")
+    .forEach((v) => v.classList.add("hidden"));
+  const targetView = $(`view-${viewName}`);
+  if (targetView) targetView.classList.remove("hidden");
+
+  // Update status aktif tombol navigasi
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    if (btn.dataset.nav === viewName) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
   });
-  $("#btnFillQr").addEventListener("click", () => {
-    state.scanTarget = "form";
-    setFormMode("scan");
-    startScanner("form");
-  });
+
+  lucide.createIcons();
 }
 
-// ============================================================
-// 10. RIWAYAT, PENGGUNA, REFERENSI
-// ============================================================
-async function loadLogs() {
-  const res = await api("getLogs", { limit: 200 });
-  const tbody = $("#logTableBody");
-  tbody.innerHTML = "";
-  (res.data || []).forEach((l) => {
-    tbody.insertAdjacentHTML(
-      "beforeend",
-      `
-      <tr>
-        <td class="td whitespace-nowrap">${formatDate(l.Tanggal, true)}</td>
-        <td class="td">${escapeHtml(l.Nama_Aset)}<div class="text-xs text-gray-500 font-mono">${escapeHtml(l.Kode_QR)}</div></td>
-        <td class="td">${escapeHtml(l.Jenis_Aktivitas)}</td>
-        <td class="td">${escapeHtml(l.Lokasi_Baru || l.Lokasi_Lama || "-")}</td>
-        <td class="td">${escapeHtml(l.Kondisi || "-")}</td>
-        <td class="td">${escapeHtml(l.Petugas)}</td>
-      </tr>`,
+document.querySelectorAll(".nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const target = btn.dataset.nav;
+    if (target === "form") {
+      resetAsetForm();
+    }
+    switchView(target);
+  });
+});
+
+// ==========================================
+// LOAD DATA DARI FIRESTORE
+// ==========================================
+async function loadAllData() {
+  showLoading("Memuat data aset...");
+  try {
+    const q = query(
+      collection(db, "master_aset"),
+      orderBy("updatedAt", "desc"),
     );
-  });
+    const snapshot = await getDocs(q);
+
+    allAssets = [];
+    snapshot.forEach((docSnap) => {
+      allAssets.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    populateLocationFilters();
+    renderAssetList();
+
+    if (currentUser.role === "Admin") {
+      updateDashboardKPI();
+      await loadRecentLogs();
+    }
+  } catch (error) {
+    console.error("Error loading assets:", error);
+    showToast("Gagal memuat daftar aset.", "error");
+  } finally {
+    hideLoading();
+  }
 }
 
-async function loadUsers() {
-  const res = await api("getUsers");
-  const tbody = $("#userTableBody");
-  tbody.innerHTML = "";
-  (res.data || []).forEach((u) => {
-    tbody.insertAdjacentHTML(
-      "beforeend",
-      `
-      <tr>
-        <td class="td">${escapeHtml(u.Username)}</td>
-        <td class="td">${escapeHtml(u.Nama_Lengkap)}</td>
-        <td class="td"><span class="badge">${escapeHtml(u.Role)}</span></td>
-        <td class="td">${escapeHtml(u.Status_Aktif)}</td>
-        <td class="td"><button class="btn-secondary text-xs px-2 py-1" data-reset="${escapeHtml(u.Username)}">Reset Password</button></td>
-      </tr>`,
+$("btn-refresh-data")?.addEventListener("click", loadAllData);
+
+function populateLocationFilters() {
+  const lokasiSet = new Set();
+  allAssets.forEach((a) => {
+    if (a.lokasi) lokasiSet.add(a.lokasi.trim());
+  });
+
+  const filterSelect = $("filter-lokasi");
+  const dataList = $("list-lokasi-options");
+
+  filterSelect.innerHTML = '<option value="">Semua Lokasi</option>';
+  dataList.innerHTML = "";
+
+  Array.from(lokasiSet)
+    .sort()
+    .forEach((lok) => {
+      const opt = document.createElement("option");
+      opt.value = lok;
+      opt.textContent = lok;
+      filterSelect.appendChild(opt);
+
+      const dlOpt = document.createElement("option");
+      dlOpt.value = lok;
+      dataList.appendChild(dlOpt);
+    });
+}
+
+// ==========================================
+// DASHBOARD KPI & LOG TERBARU (ADMIN)
+// ==========================================
+function updateDashboardKPI() {
+  const totalAset = allAssets.length;
+  let totalNilai = 0;
+  let kondisiBaik = 0;
+  let kondisiRusak = 0;
+
+  allAssets.forEach((aset) => {
+    totalNilai += Number(aset.hargaPerolehan) || 0;
+    if (aset.kondisi === "Baik") {
+      kondisiBaik++;
+    } else {
+      kondisiRusak++;
+    }
+  });
+
+  $("kpi-total-aset").textContent = totalAset;
+  $("kpi-total-nilai").textContent = formatRupiah(totalNilai);
+  $("kpi-kondisi-baik").textContent = kondisiBaik;
+  $("kpi-kondisi-rusak").textContent = kondisiRusak;
+}
+
+async function loadRecentLogs() {
+  const container = $("dashboard-recent-logs");
+  try {
+    const q = query(
+      collection(db, "log_aktivitas"),
+      orderBy("tanggal", "desc"),
+      limit(8),
     );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      container.innerHTML =
+        '<p class="text-slate-400 py-4 text-center">Belum ada aktivitas tercatat.</p>';
+      return;
+    }
+
+    let html = "";
+    snap.forEach((docSnap) => {
+      const log = docSnap.data();
+      html += `
+        <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <div>
+            <span class="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(log.kodeQR)}</span>
+            <span class="font-medium ml-1.5">${escapeHTML(log.namaAset)}</span>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <span class="font-semibold">${escapeHTML(log.jenisAktivitas)}</span> — ${escapeHTML(log.keterangan || "-")}
+            </p>
+          </div>
+          <div class="text-left sm:text-right text-xs text-slate-400 shrink-0">
+            <p class="font-medium text-slate-600 dark:text-slate-300">${escapeHTML(log.petugasNama)}</p>
+            <p>${formatTimestamp(log.tanggal)}</p>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  } catch (err) {
+    console.error("Gagal memuat log:", err);
+  }
+}
+
+// ==========================================
+// RENDER DAFTAR ASET & FILTER
+// ==========================================
+function getKondisiBadge(kondisi) {
+  switch (kondisi) {
+    case "Baik":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+    case "Rusak Ringan":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+    case "Rusak Berat":
+      return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300";
+    default:
+      return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300";
+  }
+}
+
+function getFilteredAssets() {
+  const search = $("filter-search").value.trim().toLowerCase();
+  const kategori = $("filter-kategori").value;
+  const lokasi = $("filter-lokasi").value;
+  const kondisi = $("filter-kondisi").value;
+
+  return allAssets.filter((item) => {
+    const matchSearch =
+      !search ||
+      (item.namaAset && item.namaAset.toLowerCase().includes(search)) ||
+      (item.kodeQR && item.kodeQR.toLowerCase().includes(search)) ||
+      (item.picPenanggungJawab &&
+        item.picPenanggungJawab.toLowerCase().includes(search)) ||
+      (item.platNomor && item.platNomor.toLowerCase().includes(search));
+
+    const matchKategori = !kategori || item.kategori === kategori;
+    const matchLokasi = !lokasi || item.lokasi === lokasi;
+    const matchKondisi = !kondisi || item.kondisi === kondisi;
+
+    return matchSearch && matchKategori && matchLokasi && matchKondisi;
   });
 }
 
-async function handleAddUser() {
-  const username = prompt("Username baru:");
-  if (!username) return;
-  const password = prompt("Password (min 6 karakter):");
-  if (!password) return;
-  const nama = prompt("Nama lengkap:", username) || username;
-  const role = prompt("Role (Admin / Staff):", "Staff");
-  const res = await api("createUser", {
-    data: { username, password, nama, role },
-  });
-  toast(res.message, res.success ? "success" : "error");
-  loadUsers();
-}
+function renderAssetList() {
+  const filtered = getFilteredAssets();
+  const tbody = $("aset-table-body");
+  const mobileList = $("aset-mobile-list");
 
-async function handleUserTableClick(e) {
-  const btn = e.target.closest("[data-reset]");
-  if (!btn) return;
-  const pw = prompt(`Password baru untuk ${btn.dataset.reset}:`);
-  if (!pw) return;
-  const res = await api("resetPassword", {
-    data: { username: btn.dataset.reset, newPassword: pw },
-  });
-  toast(res.message, res.success ? "success" : "error");
-}
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">Tidak ada aset yang sesuai filter.</td></tr>`;
+    mobileList.innerHTML = `<div class="bg-white dark:bg-slate-800 p-6 rounded-2xl text-center text-sm text-slate-400 border border-slate-200 dark:border-slate-700">Tidak ada aset yang sesuai filter.</div>`;
+    return;
+  }
 
-async function loadReferences(render = false) {
-  const res = await api("getReferences");
-  if (!res.success) return;
-  state.references = res.data;
-  fillFilterSelects();
-  if (render) renderRefGrid();
-}
+  let tableHtml = "";
+  let mobileHtml = "";
 
-function fillFilterSelects() {
-  const { kategori, kondisi, status } = state.references;
-  fillSelect($("#filterKategori"), kategori);
-  fillSelect($("#filterKondisi"), kondisi);
-  fillSelect($("#filterStatus"), status);
-  $("#filterKategori").insertAdjacentHTML(
-    "afterbegin",
-    '<option value="">Semua Kategori</option>',
-  );
-  $("#filterKondisi").insertAdjacentHTML(
-    "afterbegin",
-    '<option value="">Semua Kondisi</option>',
-  );
-  $("#filterStatus").insertAdjacentHTML(
-    "afterbegin",
-    '<option value="">Semua Status</option>',
-  );
-  populateFormSelects();
-}
+  filtered.forEach((aset) => {
+    const badgeClass = getKondisiBadge(aset.kondisi);
+    const subInfo = aset.platNomor
+      ? ` • ${escapeHTML(aset.platNomor)}`
+      : aset.merkTipe
+        ? ` • ${escapeHTML(aset.merkTipe)}`
+        : "";
 
-function renderRefGrid() {
-  const grid = $("#refGrid");
-  grid.innerHTML = "";
-  ["kategori", "lokasi", "kondisi", "status"].forEach((type) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="flex justify-between items-center mb-3">
-        <h2 class="font-semibold capitalize">${type}</h2>
-        <button class="btn-primary text-xs px-3 py-1" data-add-ref="${type}">+ Tambah</button>
+    // Desktop Row
+    tableHtml += `
+      <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition">
+        <td class="py-3 px-4 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kodeQR)}</td>
+        <td class="py-3 px-4">
+          <div class="font-semibold">${escapeHTML(aset.namaAset)}</div>
+          <div class="text-xs text-slate-400">${escapeHTML(aset.merkTipe || "-")} ${aset.platNomor ? `(${escapeHTML(aset.platNomor)})` : ""}</div>
+        </td>
+        <td class="py-3 px-4 text-xs">${escapeHTML(aset.kategori)}</td>
+        <td class="py-3 px-4">
+          <div class="text-xs font-medium">${escapeHTML(aset.lokasi)}</div>
+          <div class="text-[11px] text-slate-400">PIC: ${escapeHTML(aset.picPenanggungJawab)}</div>
+        </td>
+        <td class="py-3 px-4">
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${badgeClass}">${escapeHTML(aset.kondisi)}</span>
+        </td>
+        <td class="py-3 px-4 text-right">
+          <button data-id="${aset.id}" class="btn-open-detail px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-medium transition">
+            Detail
+          </button>
+        </td>
+      </tr>
+    `;
+
+    // Mobile Card
+    mobileHtml += `
+      <div data-id="${aset.id}" class="btn-open-detail bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm active:scale-[0.99] transition cursor-pointer">
+        <div class="flex justify-between items-start gap-2 mb-1.5">
+          <span class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">${escapeHTML(aset.kodeQR)}</span>
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full ${badgeClass}">${escapeHTML(aset.kondisi)}</span>
+        </div>
+        <h4 class="font-bold text-base leading-snug">${escapeHTML(aset.namaAset)}</h4>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${escapeHTML(aset.kategori)}${subInfo}</p>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span>📍 ${escapeHTML(aset.lokasi)}</span>
+          <span>👤 ${escapeHTML(aset.picPenanggungJawab)}</span>
+        </div>
       </div>
-      <ul class="space-y-1 text-sm">
-        ${state.references[type]
-          .map(
-            (v) => `
-          <li class="flex justify-between items-center py-1 border-b dark:border-gray-700">
-            <span>${escapeHtml(v)}</span>
-            <button class="text-red-500 text-xs" data-del-ref="${type}" data-val="${escapeHtml(v)}">Hapus</button>
-          </li>`,
-          )
-          .join("")}
-      </ul>`;
-    grid.appendChild(card);
+    `;
   });
-}
 
-async function handleRefClick(e) {
-  const add = e.target.closest("[data-add-ref]");
-  const del = e.target.closest("[data-del-ref]");
-  if (add) {
-    const value = prompt(`Nilai baru untuk ${add.dataset.addRef}:`);
-    if (!value) return;
-    const res = await api("addReference", {
-      data: { type: add.dataset.addRef, value },
+  tbody.innerHTML = tableHtml;
+  mobileList.innerHTML = mobileHtml;
+
+  // Bind event klik detail
+  document.querySelectorAll(".btn-open-detail").forEach((el) => {
+    el.addEventListener("click", () => {
+      const aset = allAssets.find((a) => a.id === el.dataset.id);
+      if (aset) openDetailModal(aset);
     });
-    toast(res.message, res.success ? "success" : "error");
-    await loadReferences(true);
-  }
-  if (del) {
-    if (!confirm(`Hapus "${del.dataset.val}"?`)) return;
-    const res = await api("deleteReference", {
-      data: { type: del.dataset.delRef, value: del.dataset.val },
-    });
-    toast(res.message, res.success ? "success" : "error");
-    await loadReferences(true);
-  }
-}
-
-// ============================================================
-// 11. UTILITAS UI
-// ============================================================
-function toast(msg, type = "success") {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.className = `fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg text-white text-sm ${type === "error" ? "bg-red-600" : "bg-green-600"}`;
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add("hidden"), 3000);
-}
-
-function showLoading(on) {
-  const el = $("#loading");
-  el.classList.toggle("hidden", !on);
-  el.classList.toggle("flex", on);
-}
-
-function escapeHtml(str) {
-  return String(str ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c],
-  );
-}
-
-function formatDate(v, withTime = false) {
-  if (!v) return "-";
-  const d = new Date(v);
-  if (isNaN(d)) return String(v);
-  const opts = withTime
-    ? {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    : { day: "2-digit", month: "short", year: "numeric" };
-  return d.toLocaleString("id-ID", opts);
-}
-
-function formatRupiah(n) {
-  if (n === "" || n === null || n === undefined) return "-";
-  return "Rp " + Number(n).toLocaleString("id-ID");
-}
-
-// ============================================================
-// 12. INISIALISASI
-// ============================================================
-function bindEvents() {
-  $("#loginForm").addEventListener("submit", handleLogin);
-  $("#changePassForm").addEventListener("submit", handleChangePassword);
-  $("#assetForm").addEventListener("submit", handleAssetSubmit);
-  $("#assetForm").Kategori.addEventListener("change", applyDynamicFields);
-  $("#modeManual").addEventListener("click", () => setFormMode("manual"));
-  $("#modeScan").addEventListener("click", () => {
-    setFormMode("scan");
-    toast('Klik "Scan Kode" untuk memindai QR.');
   });
-  $("#btnCancelForm").addEventListener("click", () => showPage("assets"));
-
-  $("#modalClose").addEventListener("click", closeModal);
-  $("#btnStockOpname").addEventListener("click", handleStockOpname);
-  $("#btnMove").addEventListener("click", handleMoveAsset);
-  $("#btnDeleteAsset").addEventListener("click", handleDeleteAsset);
-  $("#btnEditAsset").addEventListener("click", () => {
-    const a = state.selectedAsset;
-    closeModal();
-    openAssetForm(a);
-  });
-  $("#btnPrintQr").addEventListener("click", printQrLabel);
-
-  $("#btnAddUser").addEventListener("click", handleAddUser);
-  $("#userTableBody").addEventListener("click", handleUserTableClick);
-  $("#refGrid").addEventListener("click", handleRefClick);
-
-  $("#themeToggleDesktop").addEventListener("click", toggleTheme);
-  $("#themeToggleMobile").addEventListener("click", toggleTheme);
-  $("#logoutDesktop").addEventListener("click", handleLogout);
-  $("#btnLogoutProfile").addEventListener("click", handleLogout);
-
-  bindNavigation();
-  bindAssetList();
-  bindScan();
 }
 
-function init() {
-  initTheme();
-  bindEvents();
-  $("#apiUrl").value = state.apiUrl;
-  applyRoleUI();
+["filter-search", "filter-kategori", "filter-lokasi", "filter-kondisi"].forEach(
+  (id) => {
+    $(id).addEventListener("input", renderAssetList);
+  },
+);
 
-  if (state.token && state.user) {
-    showPage("home");
-    loadReferences(false);
+$("btn-goto-add")?.addEventListener("click", () => {
+  resetAsetForm();
+  switchView("form");
+});
+
+// ==========================================
+// DYNAMIC FORM FIELDS BERDASARKAN KATEGORI
+// ==========================================
+function updateDynamicFormFields() {
+  const kategori = $("input-kategori").value;
+
+  const fSpec = $("field-spesifikasi");
+  const fSeri = $("field-no-seri");
+  const fPlat = $("field-plat-nomor");
+  const fTahun = $("field-tahun");
+  const fGaransi = $("field-garansi-stnk");
+  const lblGaransi = $("label-garansi-stnk");
+  const fMaint = $("field-maintenance");
+
+  // Reset visibilitas default
+  fSpec.classList.remove("hidden");
+  fSeri.classList.remove("hidden");
+  fPlat.classList.add("hidden");
+  fTahun.classList.add("hidden");
+  fGaransi.classList.add("hidden");
+  fMaint.classList.add("hidden");
+
+  if (kategori === "Peralatan IT") {
+    $("input-spesifikasi").placeholder =
+      "Contoh: Intel i7, RAM 16GB, SSD 512GB";
+    $("input-no-seri").placeholder = "Serial Number (S/N)";
+    lblGaransi.textContent = "Batas Masa Garansi";
+    fGaransi.classList.remove("hidden");
+  } else if (kategori === "Mesin Produksi") {
+    $("input-spesifikasi").placeholder = "Contoh: Daya 5000W, Kapasitas 2 Ton";
+    $("input-no-seri").placeholder = "Nomor Seri Mesin";
+    fTahun.classList.remove("hidden");
+    fMaint.classList.remove("hidden");
+  } else if (kategori === "Kendaraan") {
+    fSpec.classList.add("hidden");
+    fPlat.classList.remove("hidden");
+    $("input-no-seri").placeholder = "Nomor Rangka / Nomor Mesin";
+    fTahun.classList.remove("hidden");
+    lblGaransi.textContent = "Masa Berlaku STNK / Pajak";
+    fGaransi.classList.remove("hidden");
+    fMaint.classList.remove("hidden");
   } else {
-    showPage("login");
+    $("input-spesifikasi").placeholder =
+      "Ukuran / Bahan / Keterangan Spesifikasi";
+    $("input-no-seri").placeholder = "Nomor Seri (Jika ada)";
   }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+$("input-kategori").addEventListener("change", updateDynamicFormFields);
+
+// ==========================================
+// FORM TAMBAH & EDIT ASET (ADMIN)
+// ==========================================
+function resetAsetForm() {
+  $("aset-form").reset();
+  $("aset-doc-id").value = "";
+  $("form-aset-title").textContent = "Tambah Aset Baru";
+  $("add-mode-selector").classList.remove("hidden");
+  $("input-kode-qr").readOnly = false;
+  $("preview-foto").classList.add("hidden");
+  $("existing-dokumen-info").classList.add("hidden");
+  updateDynamicFormFields();
+}
+
+$("btn-cancel-form").addEventListener("click", () => {
+  stopFormScanner();
+  switchView("aset");
+});
+
+$("input-foto").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    const url = URL.createObjectURL(file);
+    $("preview-foto").src = url;
+    $("preview-foto").classList.remove("hidden");
+  }
+});
+
+$("aset-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (currentUser?.role !== "Admin") return;
+
+  const docId = $("aset-doc-id").value;
+  const isEdit = Boolean(docId);
+
+  let kodeQR = $("input-kode-qr").value.trim().toUpperCase();
+  if (!kodeQR) {
+    kodeQR = generateAutoQR();
+  }
+
+  // Cek duplikasi Kode QR saat tambah baru
+  if (!isEdit) {
+    const duplicate = allAssets.find((a) => a.kodeQR.toUpperCase() === kodeQR);
+    if (duplicate) {
+      showToast(
+        `Kode QR ${kodeQR} sudah digunakan oleh aset "${duplicate.namaAset}"!`,
+        "error",
+      );
+      return;
+    }
+  }
+
+  showLoading(
+    isEdit ? "Menyimpan perubahan aset..." : "Menyimpan aset baru...",
+  );
+
+  try {
+    let urlFoto = isEdit ? selectedAsset?.urlFoto || "" : "";
+    let urlDokumen = isEdit ? selectedAsset?.urlDokumen || "" : "";
+
+    // 1. Kompres & Upload Foto jika ada file baru dipilih
+    const fotoFile = $("input-foto").files[0];
+    if (fotoFile) {
+      showLoading("Mengompres & mengunggah foto...");
+      const compressedBlob = await compressImage(fotoFile, 1280, 0.7);
+      const fotoRef = ref(storage, `aset_foto/${kodeQR}_${Date.now()}.jpg`);
+      await uploadBytes(fotoRef, compressedBlob, { contentType: "image/jpeg" });
+      urlFoto = await getDownloadURL(fotoRef);
+    }
+
+    // 2. Upload Dokumen jika ada file baru dipilih
+    const dokFile = $("input-dokumen").files[0];
+    if (dokFile) {
+      showLoading("Mengunggah dokumen aset...");
+      const safeName = dokFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const dokRef = ref(
+        storage,
+        `aset_dokumen/${kodeQR}_${Date.now()}_${safeName}`,
+      );
+      await uploadBytes(dokRef, dokFile);
+      urlDokumen = await getDownloadURL(dokRef);
+    }
+
+    const payload = {
+      kodeQR,
+      namaAset: $("input-nama-aset").value.trim(),
+      kategori: $("input-kategori").value,
+      merkTipe: $("input-merk-tipe").value.trim(),
+      spesifikasiDetail: $("input-spesifikasi").value.trim(),
+      noSeriAtauMesin: $("input-no-seri").value.trim(),
+      platNomor: $("input-plat-nomor").value.trim().toUpperCase(),
+      tahunPembuatan: $("input-tahun").value.trim(),
+      tanggalBeli: $("input-tanggal-beli").value,
+      hargaPerolehan: Number($("input-harga").value) || 0,
+      batasGaransiAtauSTNK: $("input-garansi-stnk").value,
+      jadwalMaintenance: $("input-maintenance").value,
+      lokasi: $("input-lokasi").value.trim(),
+      picPenanggungJawab: $("input-pic").value.trim(),
+      kondisi: $("input-kondisi").value,
+      status: $("input-status").value,
+      urlFoto,
+      urlDokumen,
+      catatan: $("input-catatan").value.trim(),
+      updatedAt: serverTimestamp(),
+    };
+
+    if (isEdit) {
+      await updateDoc(doc(db, "master_aset", docId), payload);
+
+      await addDoc(collection(db, "log_aktivitas"), {
+        idAset: docId,
+        kodeQR: payload.kodeQR,
+        namaAset: payload.namaAset,
+        tanggal: serverTimestamp(),
+        jenisAktivitas: "Update Data",
+        lokasiLama: selectedAsset?.lokasi || "-",
+        lokasiBaru: payload.lokasi,
+        picLama: selectedAsset?.picPenanggungJawab || "-",
+        picBaru: payload.picPenanggungJawab,
+        kondisi: payload.kondisi,
+        keterangan: "Pembaruan data master aset oleh Admin",
+        petugasNama: currentUser.namaLengkap,
+        petugasUid: currentUser.uid,
+      });
+
+      showToast("Data aset berhasil diperbarui!");
+      await loadAllData();
+      switchView("aset");
+    } else {
+      payload.createdAt = serverTimestamp();
+      payload.terakhirAudit = serverTimestamp();
+
+      const newDocRef = await addDoc(collection(db, "master_aset"), payload);
+
+      await addDoc(collection(db, "log_aktivitas"), {
+        idAset: newDocRef.id,
+        kodeQR: payload.kodeQR,
+        namaAset: payload.namaAset,
+        tanggal: serverTimestamp(),
+        jenisAktivitas: "Aset Baru",
+        lokasiLama: "-",
+        lokasiBaru: payload.lokasi,
+        picLama: "-",
+        picBaru: payload.picPenanggungJawab,
+        kondisi: payload.kondisi,
+        keterangan: "Registrasi aset baru",
+        petugasNama: currentUser.namaLengkap,
+        petugasUid: currentUser.uid,
+      });
+
+      showToast("Aset baru berhasil ditambahkan!");
+      await loadAllData();
+      switchView("aset");
+
+      // Tampilkan modal QR Code otomatis setelah simpan baru
+      openQRModal(payload.kodeQR, payload.namaAset);
+    }
+  } catch (error) {
+    console.error("Save asset error:", error);
+    showToast("Gagal menyimpan aset: " + error.message, "error");
+  } finally {
+    hideLoading();
+  }
+});
+
+// ==========================================
+// QR SCANNER (MODE CEPAT & MODE FORM BARU)
+// ==========================================
+function stopMainScanner() {
+  if (mainScanner) {
+    mainScanner
+      .stop()
+      .then(() => {
+        mainScanner.clear();
+        mainScanner = null;
+        $("btn-start-scan").classList.remove("hidden");
+        $("btn-stop-scan").classList.add("hidden");
+        $("qr-reader").innerHTML = "Kamera belum aktif";
+      })
+      .catch(() => {});
+  }
+}
+
+function stopFormScanner() {
+  if (formScanner) {
+    formScanner
+      .stop()
+      .then(() => {
+        formScanner.clear();
+        formScanner = null;
+        $("form-qr-scanner-box").classList.add("hidden");
+      })
+      .catch(() => {});
+  }
+}
+
+function stopAllScanners() {
+  stopMainScanner();
+  stopFormScanner();
+}
+
+// Scanner 1: Halaman Scan Cepat
+$("btn-start-scan").addEventListener("click", () => {
+  $("qr-reader").innerHTML = "";
+  mainScanner = new Html5Qrcode("qr-reader");
+
+  mainScanner
+    .start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        stopMainScanner();
+        handleLookupQR(decodedText.trim().toUpperCase());
+      },
+      () => {},
+    )
+    .then(() => {
+      $("btn-start-scan").classList.add("hidden");
+      $("btn-stop-scan").classList.remove("hidden");
+    })
+    .catch((err) => {
+      showToast("Tidak dapat mengakses kamera: " + err, "error");
+    });
+});
+
+$("btn-stop-scan").addEventListener("click", stopMainScanner);
+
+$("btn-manual-lookup").addEventListener("click", () => {
+  const code = $("manual-qr-lookup").value.trim().toUpperCase();
+  if (!code) {
+    showToast("Masukkan Kode QR terlebih dahulu.", "warning");
+    return;
+  }
+  handleLookupQR(code);
+});
+
+function handleLookupQR(code) {
+  const found = allAssets.find((a) => a.kodeQR.toUpperCase() === code);
+  if (found) {
+    openDetailModal(found);
+  } else {
+    showToast(`Aset dengan kode "${code}" tidak ditemukan.`, "error");
+  }
+}
+
+// Scanner 2: Saat Tambah Aset (Scan Stiker QR yang sudah ada)
+$("btn-mode-manual").addEventListener("click", () => {
+  stopFormScanner();
+  $("input-kode-qr").value = "";
+  $("input-kode-qr").focus();
+});
+
+$("btn-mode-scan-qr").addEventListener("click", () => {
+  $("form-qr-scanner-box").classList.remove("hidden");
+  formScanner = new Html5Qrcode("form-qr-reader");
+
+  formScanner
+    .start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 200, height: 200 } },
+      (decodedText) => {
+        const scannedCode = decodedText.trim().toUpperCase();
+        stopFormScanner();
+
+        const existing = allAssets.find(
+          (a) => a.kodeQR.toUpperCase() === scannedCode,
+        );
+        if (existing) {
+          showToast(
+            `QR "${scannedCode}" sudah terdaftar! Membuka detail aset...`,
+            "warning",
+          );
+          openDetailModal(existing);
+        } else {
+          $("input-kode-qr").value = scannedCode;
+          showToast(`QR baru terbaca: ${scannedCode}. Silakan lengkapi form.`);
+        }
+      },
+      () => {},
+    )
+    .catch((err) => {
+      showToast("Gagal membuka kamera: " + err, "error");
+    });
+});
+
+$("btn-close-form-scanner").addEventListener("click", stopFormScanner);
+
+// ==========================================
+// MODAL DETAIL ASET, STOCK OPNAME, EDIT & DELETE
+// ==========================================
+async function openDetailModal(aset) {
+  selectedAsset = aset;
+
+  $("detail-kode-qr").textContent = aset.kodeQR;
+  $("detail-nama-aset").textContent = aset.namaAset;
+  $("detail-kategori").textContent = aset.kategori || "-";
+  $("detail-merk").textContent = aset.merkTipe || "-";
+  $("detail-lokasi").textContent = aset.lokasi || "-";
+  $("detail-pic").textContent = aset.picPenanggungJawab || "-";
+  $("detail-kondisi").textContent = aset.kondisi || "-";
+  $("detail-audit").textContent = formatTimestamp(aset.terakhirAudit);
+
+  // Foto
+  if (aset.urlFoto) {
+    $("detail-foto").src = aset.urlFoto;
+    $("detail-foto").classList.remove("hidden");
+    $("detail-no-foto").classList.add("hidden");
+  } else {
+    $("detail-foto").classList.add("hidden");
+    $("detail-no-foto").classList.remove("hidden");
+  }
+
+  // Dokumen
+  if (aset.urlDokumen) {
+    $("detail-link-dokumen").href = aset.urlDokumen;
+    $("detail-link-dokumen").classList.remove("hidden");
+  } else {
+    $("detail-link-dokumen").classList.add("hidden");
+  }
+
+  // Spesifikasi Tambahan Dinamis
+  const specs = [];
+  if (aset.spesifikasiDetail)
+    specs.push(
+      `<div><span class="text-slate-400">Spesifikasi:</span> <strong>${escapeHTML(aset.spesifikasiDetail)}</strong></div>`,
+    );
+  if (aset.noSeriAtauMesin)
+    specs.push(
+      `<div><span class="text-slate-400">No. Seri / Mesin:</span> <strong>${escapeHTML(aset.noSeriAtauMesin)}</strong></div>`,
+    );
+  if (aset.platNomor)
+    specs.push(
+      `<div><span class="text-slate-400">Plat Nomor:</span> <strong>${escapeHTML(aset.platNomor)}</strong></div>`,
+    );
+  if (aset.tahunPembuatan)
+    specs.push(
+      `<div><span class="text-slate-400">Tahun:</span> <strong>${escapeHTML(aset.tahunPembuatan)}</strong></div>`,
+    );
+  if (aset.batasGaransiAtauSTNK)
+    specs.push(
+      `<div><span class="text-slate-400">Batas Garansi/STNK:</span> <strong>${escapeHTML(aset.batasGaransiAtauSTNK)}</strong></div>`,
+    );
+  if (aset.jadwalMaintenance)
+    specs.push(
+      `<div><span class="text-slate-400">Jadwal Maintenance:</span> <strong>${escapeHTML(aset.jadwalMaintenance)}</strong></div>`,
+    );
+  if (currentUser.role === "Admin" && aset.hargaPerolehan) {
+    specs.push(
+      `<div><span class="text-slate-400">Harga Perolehan:</span> <strong>${formatRupiah(aset.hargaPerolehan)}</strong></div>`,
+    );
+  }
+  if (aset.catatan)
+    specs.push(
+      `<div><span class="text-slate-400">Catatan:</span> ${escapeHTML(aset.catatan)}</div>`,
+    );
+
+  $("detail-extra-specs").innerHTML =
+    specs.length > 0
+      ? specs.join("")
+      : '<p class="text-slate-400">Tidak ada rincian tambahan.</p>';
+
+  // Pre-fill form Stock Opname
+  $("opname-kondisi").value = aset.kondisi || "Baik";
+  $("opname-lokasi").value = aset.lokasi || "";
+  $("opname-catatan").value = "";
+
+  $("modal-detail").classList.remove("hidden");
+  lucide.createIcons();
+
+  // Muat riwayat log aset ini
+  await loadAssetLogs(aset.id);
+}
+
+async function loadAssetLogs(asetId) {
+  const listEl = $("detail-log-list");
+  listEl.innerHTML = '<p class="text-slate-400">Memuat riwayat...</p>';
+
+  try {
+    const q = query(
+      collection(db, "log_aktivitas"),
+      where("idAset", "==", asetId),
+      orderBy("tanggal", "desc"),
+      limit(10),
+    );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      listEl.innerHTML =
+        '<p class="text-slate-400">Belum ada riwayat aktivitas.</p>';
+      return;
+    }
+
+    let html = "";
+    snap.forEach((d) => {
+      const l = d.data();
+      html += `
+        <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700">
+          <div class="flex justify-between font-semibold">
+            <span>${escapeHTML(l.jenisAktivitas)} (${escapeHTML(l.kondisi)})</span>
+            <span class="text-slate-400 font-normal">${formatTimestamp(l.tanggal)}</span>
+          </div>
+          <p class="text-slate-500 dark:text-slate-300 mt-0.5">${escapeHTML(l.keterangan || "-")}</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Oleh: ${escapeHTML(l.petugasNama)} • Lokasi: ${escapeHTML(l.lokasiBaru)}</p>
+        </div>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (err) {
+    // Fallback jika composite index Firestore belum dibuat
+    listEl.innerHTML =
+      '<p class="text-slate-400">Riwayat belum tersedia (memerlukan index Firestore).</p>';
+  }
+}
+
+$("btn-close-detail").addEventListener("click", () => {
+  $("modal-detail").classList.add("hidden");
+});
+
+// Submit Stock Opname / Audit (Admin & Staff)
+$("opname-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!selectedAsset) return;
+
+  const kondisiBaru = $("opname-kondisi").value;
+  const lokasiBaru = $("opname-lokasi").value.trim();
+  const catatanAudit =
+    $("opname-catatan").value.trim() || "Pengecekan fisik rutin";
+
+  showLoading("Menyimpan hasil Stock Opname...");
+
+  try {
+    const asetRef = doc(db, "master_aset", selectedAsset.id);
+    await updateDoc(asetRef, {
+      kondisi: kondisiBaru,
+      lokasi: lokasiBaru,
+      catatan: catatanAudit,
+      terakhirAudit: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await addDoc(collection(db, "log_aktivitas"), {
+      idAset: selectedAsset.id,
+      kodeQR: selectedAsset.kodeQR,
+      namaAset: selectedAsset.namaAset,
+      tanggal: serverTimestamp(),
+      jenisAktivitas: "Stock Opname",
+      lokasiLama: selectedAsset.lokasi || "-",
+      lokasiBaru: lokasiBaru,
+      picLama: selectedAsset.picPenanggungJawab || "-",
+      picBaru: selectedAsset.picPenanggungJawab || "-",
+      kondisi: kondisiBaru,
+      keterangan: catatanAudit,
+      petugasNama: currentUser.namaLengkap,
+      petugasUid: currentUser.uid,
+    });
+
+    showToast("Stock Opname berhasil dicatat!");
+    $("modal-detail").classList.add("hidden");
+    await loadAllData();
+  } catch (error) {
+    console.error("Opname error:", error);
+    showToast("Gagal menyimpan Stock Opname: " + error.message, "error");
+  } finally {
+    hideLoading();
+  }
+});
+
+// Edit Aset (Admin Only)
+$("btn-edit-aset").addEventListener("click", () => {
+  if (currentUser?.role !== "Admin" || !selectedAsset) return;
+
+  $("modal-detail").classList.add("hidden");
+  switchView("form");
+
+  $("form-aset-title").textContent = "Edit Data Aset";
+  $("add-mode-selector").classList.add("hidden");
+  $("aset-doc-id").value = selectedAsset.id;
+
+  $("input-kode-qr").value = selectedAsset.kodeQR;
+  $("input-kode-qr").readOnly = true;
+  $("input-kategori").value = selectedAsset.kategori || "Peralatan IT";
+  updateDynamicFormFields();
+
+  $("input-nama-aset").value = selectedAsset.namaAset || "";
+  $("input-merk-tipe").value = selectedAsset.merkTipe || "";
+  $("input-spesifikasi").value = selectedAsset.spesifikasiDetail || "";
+  $("input-no-seri").value = selectedAsset.noSeriAtauMesin || "";
+  $("input-plat-nomor").value = selectedAsset.platNomor || "";
+  $("input-tahun").value = selectedAsset.tahunPembuatan || "";
+  $("input-tanggal-beli").value = selectedAsset.tanggalBeli || "";
+  $("input-harga").value = selectedAsset.hargaPerolehan || "";
+  $("input-garansi-stnk").value = selectedAsset.batasGaransiAtauSTNK || "";
+  $("input-maintenance").value = selectedAsset.jadwalMaintenance || "";
+  $("input-lokasi").value = selectedAsset.lokasi || "";
+  $("input-pic").value = selectedAsset.picPenanggungJawab || "";
+  $("input-kondisi").value = selectedAsset.kondisi || "Baik";
+  $("input-status").value = selectedAsset.status || "Aktif";
+  $("input-catatan").value = selectedAsset.catatan || "";
+
+  if (selectedAsset.urlFoto) {
+    $("preview-foto").src = selectedAsset.urlFoto;
+    $("preview-foto").classList.remove("hidden");
+  } else {
+    $("preview-foto").classList.add("hidden");
+  }
+
+  if (selectedAsset.urlDokumen) {
+    $("existing-dokumen-info").textContent =
+      "Dokumen tersimpan (unggah baru untuk mengganti)";
+    $("existing-dokumen-info").classList.remove("hidden");
+  } else {
+    $("existing-dokumen-info").classList.add("hidden");
+  }
+});
+
+// Hapus Aset (Admin Only)
+$("btn-delete-aset").addEventListener("click", async () => {
+  if (currentUser?.role !== "Admin" || !selectedAsset) return;
+
+  const yakin = confirm(
+    `Hapus permanen aset "${selectedAsset.namaAset}" (${selectedAsset.kodeQR})?`,
+  );
+  if (!yakin) return;
+
+  showLoading("Menghapus aset...");
+  try {
+    await deleteDoc(doc(db, "master_aset", selectedAsset.id));
+    showToast("Aset berhasil dihapus.");
+    $("modal-detail").classList.add("hidden");
+    await loadAllData();
+  } catch (error) {
+    showToast("Gagal menghapus aset: " + error.message, "error");
+  } finally {
+    hideLoading();
+  }
+});
+
+// ==========================================
+// QR CODE GENERATOR, DOWNLOAD & PRINT LABEL
+// ==========================================
+function openQRModal(kodeQR, namaAset) {
+  const canvasBox = $("qrcode-canvas");
+  canvasBox.innerHTML = "";
+
+  new QRCode(canvasBox, {
+    text: kodeQR,
+    width: 180,
+    height: 180,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+
+  $("qr-label-code").textContent = kodeQR;
+  $("qr-label-name").textContent = namaAset;
+  $("modal-qr").classList.remove("hidden");
+}
+
+$("btn-reprint-qr").addEventListener("click", () => {
+  if (selectedAsset) {
+    openQRModal(selectedAsset.kodeQR, selectedAsset.namaAset);
+  }
+});
+
+$("btn-close-qr").addEventListener("click", () => {
+  $("modal-qr").classList.add("hidden");
+});
+
+$("btn-download-qr").addEventListener("click", () => {
+  const img = $("qrcode-canvas").querySelector("img");
+  const canvas = $("qrcode-canvas").querySelector("canvas");
+  const dataUrl = img ? img.src : canvas ? canvas.toDataURL("image/png") : null;
+
+  if (!dataUrl) {
+    showToast("QR Code belum siap diunduh.", "error");
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = `${$("qr-label-code").textContent}.png`;
+  link.click();
+});
+
+$("btn-print-qr").addEventListener("click", () => {
+  window.print();
+});
+
+// ==========================================
+// EXPORT CSV (ADMIN ONLY)
+// ==========================================
+$("btn-export-csv")?.addEventListener("click", () => {
+  if (currentUser?.role !== "Admin") return;
+
+  const data = getFilteredAssets();
+  if (data.length === 0) {
+    showToast("Tidak ada data untuk di-export.", "warning");
+    return;
+  }
+
+  const headers = [
+    "Kode QR",
+    "Nama Aset",
+    "Kategori",
+    "Merk/Tipe",
+    "Spesifikasi",
+    "No Seri/Mesin",
+    "Plat Nomor",
+    "Tahun",
+    "Tanggal Beli",
+    "Harga Perolehan",
+    "Batas Garansi/STNK",
+    "Jadwal Maintenance",
+    "Lokasi",
+    "PIC",
+    "Kondisi",
+    "Status",
+    "Catatan",
+  ];
+
+  const rows = data.map((a) => [
+    a.kodeQR,
+    a.namaAset,
+    a.kategori,
+    a.merkTipe,
+    a.spesifikasiDetail,
+    a.noSeriAtauMesin,
+    a.platNomor,
+    a.tahunPembuatan,
+    a.tanggalBeli,
+    a.hargaPerolehan,
+    a.batasGaransiAtauSTNK,
+    a.jadwalMaintenance,
+    a.lokasi,
+    a.picPenanggungJawab,
+    a.kondisi,
+    a.status,
+    a.catatan,
+  ]);
+
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    [headers, ...rows]
+      .map((row) =>
+        row
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute(
+    "download",
+    `Laporan_Aset_${new Date().toISOString().slice(0, 10)}.csv`,
+  );
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+});
+
+// ==========================================
+// INIT APPLICATION
+// ==========================================
+initThemeToggle();
+lucide.createIcons();

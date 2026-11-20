@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="id" class="">
+<html lang="id" class="light">
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <title>Sistem Manajemen Aset Perusahaan</title>
 
-    <!-- Tailwind CSS via CDN -->
+    <!-- Tailwind CSS CDN & Config -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -16,7 +16,7 @@
         theme: {
           extend: {
             colors: {
-              brand: {
+              primary: {
                 50: "#eff6ff",
                 100: "#dbeafe",
                 500: "#3b82f6",
@@ -29,559 +29,1230 @@
       };
     </script>
 
-    <!-- Library QR -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-
-    <link rel="stylesheet" href="style.css" />
-    <!-- Terapkan tema sebelum render untuk mencegah flicker -->
+    <!-- Anti-FOUC Dark Mode Script -->
     <script>
-      (function () {
-        const saved = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia(
-          "(prefers-color-scheme: dark)",
-        ).matches;
-        if (saved === "dark" || (!saved && prefersDark)) {
-          document.documentElement.classList.add("dark");
-        }
-      })();
+      if (
+        localStorage.getItem("theme") === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
     </script>
+
+    <!-- Lucide Icons, HTML5-QRCode, & QRCode.js CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css" />
   </head>
-
   <body
-    class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-300"
+    class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200 selection:bg-blue-600 selection:text-white"
   >
-    <!-- ========================= TOP NAVBAR (Desktop) ========================= -->
-    <header
-      id="topNav"
-      class="hidden md:flex fixed top-0 inset-x-0 z-40 h-16 items-center justify-between px-6 bg-white/90 dark:bg-gray-800/90 backdrop-blur border-b border-gray-200 dark:border-gray-700"
+    <!-- GLOBAL LOADING OVERLAY -->
+    <div
+      id="loading-overlay"
+      class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center"
     >
-      <div class="flex items-center gap-2">
-        <span class="text-2xl">🏢</span>
-        <span class="font-bold text-lg">Aset Perusahaan</span>
-      </div>
-      <nav class="flex items-center gap-1" data-nav-required>
-        <button data-nav="home" class="nav-link">Home</button>
-        <button data-nav="scan" class="nav-link">Scan QR</button>
-        <button data-nav="assets" class="nav-link">Aset</button>
-        <button data-nav="logs" class="nav-link" data-admin-only="false">
-          Riwayat
-        </button>
-        <button data-nav="users" class="nav-link" data-admin-only="true">
-          Pengguna
-        </button>
-        <button data-nav="ref" class="nav-link" data-admin-only="true">
-          Referensi
-        </button>
-        <button data-nav="profile" class="nav-link">Profil</button>
-      </nav>
-      <div class="flex items-center gap-3">
-        <button
-          id="themeToggleDesktop"
-          class="theme-toggle"
-          aria-label="Ganti tema"
-        >
-          <span class="icon-sun hidden">☀️</span>
-          <span class="icon-moon">🌙</span>
-        </button>
-        <button
-          id="logoutDesktop"
-          class="px-3 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white"
-        >
-          Keluar
-        </button>
-      </div>
-    </header>
-
-    <!-- ========================= MAIN CONTENT ========================= -->
-    <main class="pt-4 md:pt-20 pb-24 md:pb-8 px-4 md:px-8 max-w-6xl mx-auto">
-      <!-- Header mobile -->
-      <div class="md:hidden flex items-center justify-between mb-4">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🏢</span>
-          <span class="font-bold">Aset Perusahaan</span>
-        </div>
-        <button
-          id="themeToggleMobile"
-          class="theme-toggle"
-          aria-label="Ganti tema"
-        >
-          <span class="icon-sun hidden">☀️</span>
-          <span class="icon-moon">🌙</span>
-        </button>
-      </div>
-
-      <!-- ===== HALAMAN LOGIN ===== -->
-      <section id="page-login" class="page hidden">
+      <div
+        class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl flex flex-col items-center gap-3"
+      >
         <div
-          class="max-w-md mx-auto mt-10 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8"
+          class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"
+        ></div>
+        <p
+          id="loading-text"
+          class="text-sm font-medium text-slate-700 dark:text-slate-200"
         >
-          <h1 class="text-2xl font-bold mb-1">Masuk</h1>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-            Sistem Manajemen Aset Perusahaan
-          </p>
+          Memproses data...
+        </p>
+      </div>
+    </div>
 
-          <form id="loginForm" class="space-y-4">
-            <div>
-              <label class="label">URL API (Google Apps Script)</label>
-              <input
-                id="apiUrl"
-                type="url"
-                required
-                placeholder="https://script.google.com/macros/s/.../exec"
-                class="input"
-              />
+    <!-- TOAST NOTIFICATION -->
+    <div
+      id="toast-container"
+      class="fixed top-4 right-4 z-[90] flex flex-col gap-2 max-w-xs w-full pointer-events-none"
+    ></div>
+
+    <!-- ==========================================
+       HALAMAN LOGIN
+       ========================================== -->
+    <section
+      id="login-section"
+      class="min-h-screen flex items-center justify-center p-4"
+    >
+      <div
+        class="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 sm:p-8"
+      >
+        <div class="flex justify-between items-start mb-6">
+          <div class="flex items-center gap-3">
+            <div class="p-3 bg-blue-600 text-white rounded-xl shadow-md">
+              <i data-lucide="boxes" class="w-6 h-6"></i>
             </div>
             <div>
-              <label class="label">Username</label>
+              <h1 class="text-xl font-bold tracking-tight">AssetTrack</h1>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                Manajemen Aset Perusahaan
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn-toggle-theme p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+            title="Ganti Tema"
+          >
+            <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+            <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+          </button>
+        </div>
+
+        <form id="login-form" class="space-y-4">
+          <div>
+            <label for="login-email" class="block text-sm font-medium mb-1"
+              >Email</label
+            >
+            <div class="relative">
+              <i
+                data-lucide="mail"
+                class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"
+              ></i>
               <input
-                id="loginUser"
-                type="text"
+                type="email"
+                id="login-email"
                 required
-                autocomplete="username"
-                class="input"
+                placeholder="nama@perusahaan.com"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
               />
             </div>
-            <div>
-              <label class="label">Password</label>
+          </div>
+
+          <div>
+            <label for="login-password" class="block text-sm font-medium mb-1"
+              >Password</label
+            >
+            <div class="relative">
+              <i
+                data-lucide="lock"
+                class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"
+              ></i>
               <input
-                id="loginPass"
                 type="password"
+                id="login-password"
                 required
-                autocomplete="current-password"
-                class="input"
+                placeholder="••••••••"
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
               />
             </div>
-            <button type="submit" class="btn-primary w-full">Masuk</button>
-            <p id="loginError" class="text-sm text-red-500 hidden"></p>
-          </form>
-        </div>
-      </section>
+          </div>
 
-      <!-- ===== HOME ===== -->
-      <section id="page-home" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4">Dashboard</h1>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div class="card">
-            <p class="stat-label">Total Aset</p>
-            <p id="statTotal" class="stat-value">0</p>
-          </div>
-          <div class="card">
-            <p class="stat-label">Aktif</p>
-            <p
-              id="statAktif"
-              class="stat-value text-green-600 dark:text-green-400"
-            >
-              0
-            </p>
-          </div>
-          <div class="card">
-            <p class="stat-label">Maintenance</p>
-            <p
-              id="statMaint"
-              class="stat-value text-amber-600 dark:text-amber-400"
-            >
-              0
-            </p>
-          </div>
-          <div class="card">
-            <p class="stat-label">Rusak</p>
-            <p id="statRusak" class="stat-value text-red-600 dark:text-red-400">
-              0
-            </p>
-          </div>
-        </div>
-        <div class="card">
-          <h2 class="font-semibold mb-3">Aktivitas Terbaru</h2>
-          <ul
-            id="recentLogs"
-            class="divide-y divide-gray-200 dark:divide-gray-700 text-sm"
-          ></ul>
-        </div>
-      </section>
+          <p
+            id="login-error"
+            class="hidden text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 p-3 rounded-lg border border-red-200 dark:border-red-800"
+          ></p>
 
-      <!-- ===== SCAN QR ===== -->
-      <section id="page-scan" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4">Scan QR Aset</h1>
-        <div class="card max-w-xl mx-auto">
-          <div id="qrReader" class="rounded-lg overflow-hidden bg-black"></div>
-          <div class="mt-4 flex gap-2">
-            <button id="btnStartScan" class="btn-primary flex-1">
-              Mulai Kamera
-            </button>
-            <button id="btnStopScan" class="btn-secondary flex-1 hidden">
-              Hentikan
-            </button>
-          </div>
-          <form id="manualScanForm" class="mt-4 flex gap-2">
-            <input
-              id="manualCode"
-              class="input flex-1"
-              placeholder="Atau ketik kode QR manual"
-            />
-            <button class="btn-secondary">Cari</button>
-          </form>
-        </div>
-      </section>
+          <button
+            type="submit"
+            class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2"
+          >
+            <i data-lucide="log-in" class="w-4 h-4"></i>
+            <span>Masuk ke Sistem</span>
+          </button>
+        </form>
+      </div>
+    </section>
 
-      <!-- ===== DAFTAR ASET ===== -->
-      <section id="page-assets" class="page hidden">
-        <div
-          class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4"
-        >
-          <h1 class="text-2xl font-bold">Daftar Aset</h1>
-          <div class="flex gap-2">
-            <input
-              id="searchAsset"
-              class="input md:w-64"
-              placeholder="Cari nama / kode / kategori"
-            />
+    <!-- ==========================================
+       APLIKASI UTAMA (SETELAH LOGIN)
+       ========================================== -->
+    <div id="app-section" class="hidden min-h-screen flex flex-col">
+      <!-- DESKTOP TOP NAVBAR (Muncul di layar >= 768px) -->
+      <header
+        class="hidden md:flex sticky top-0 z-40 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 h-16 items-center justify-between"
+      >
+        <div class="flex items-center gap-8">
+          <div class="flex items-center gap-2.5">
+            <div class="p-2 bg-blue-600 text-white rounded-lg">
+              <i data-lucide="boxes" class="w-5 h-5"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight">AssetTrack</span>
+          </div>
+
+          <nav class="flex items-center gap-1">
             <button
-              id="btnAddAsset"
-              class="btn-primary admin-only whitespace-nowrap"
+              data-nav="dashboard"
+              class="nav-btn admin-only px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
             >
-              + Tambah
+              <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
             </button>
+            <button
+              data-nav="scan"
+              class="nav-btn px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+            >
+              <i data-lucide="qr-code" class="w-4 h-4"></i> Scan QR
+            </button>
+            <button
+              data-nav="aset"
+              class="nav-btn px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+            >
+              <i data-lucide="package" class="w-4 h-4"></i> Daftar Aset
+            </button>
+            <button
+              data-nav="form"
+              class="nav-btn admin-only px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition"
+            >
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Tambah Aset
+            </button>
+          </nav>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="text-right mr-2">
+            <p
+              id="desktop-user-name"
+              class="text-sm font-semibold leading-none"
+            >
+              User
+            </p>
+            <span
+              id="desktop-user-role"
+              class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+              >Role</span
+            >
+          </div>
+          <button
+            type="button"
+            class="btn-toggle-theme p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition"
+            title="Ganti Tema"
+          >
+            <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+            <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+          </button>
+          <button
+            type="button"
+            class="btn-logout p-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition"
+            title="Keluar"
+          >
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- MOBILE TOP COMPACT HEADER (Muncul di layar < 768px) -->
+      <header
+        class="flex md:hidden sticky top-0 z-40 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-4 h-14 items-center justify-between"
+      >
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 bg-blue-600 text-white rounded-lg">
+            <i data-lucide="boxes" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <span class="font-bold text-base block leading-none"
+              >AssetTrack</span
+            >
+            <span
+              id="mobile-user-info"
+              class="text-[11px] text-slate-500 dark:text-slate-400"
+              >Loading...</span
+            >
           </div>
         </div>
-        <div class="flex flex-wrap gap-2 mb-4">
-          <select id="filterKategori" class="input w-auto">
-            <option value="">Semua Kategori</option>
-          </select>
-          <select id="filterKondisi" class="input w-auto">
-            <option value="">Semua Kondisi</option>
-          </select>
-          <select id="filterStatus" class="input w-auto">
-            <option value="">Semua Status</option>
-          </select>
-        </div>
-        <div class="card overflow-x-auto p-0">
-          <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 dark:bg-gray-700/50 text-left">
-              <tr>
-                <th class="th">Kode QR</th>
-                <th class="th">Nama</th>
-                <th class="th">Kategori</th>
-                <th class="th">Lokasi</th>
-                <th class="th">Kondisi</th>
-                <th class="th">Status</th>
-                <th class="th">Aksi</th>
-              </tr>
-            </thead>
-            <tbody
-              id="assetTableBody"
-              class="divide-y divide-gray-200 dark:divide-gray-700"
-            ></tbody>
-          </table>
-        </div>
-        <div class="flex justify-between items-center mt-4 text-sm">
-          <button id="prevPage" class="btn-secondary">‹ Sebelumnya</button>
-          <span id="pageInfo"></span>
-          <button id="nextPage" class="btn-secondary">Berikutnya ›</button>
-        </div>
-      </section>
 
-      <!-- ===== FORM ASET (Tambah / Edit) ===== -->
-      <section id="page-asset-form" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4" id="formTitle">Tambah Aset</h1>
-        <div class="card max-w-3xl">
-          <div class="flex gap-2 mb-6">
-            <button type="button" id="modeManual" class="btn-primary flex-1">
-              Mode Manual
-            </button>
-            <button type="button" id="modeScan" class="btn-secondary flex-1">
-              Mode Scan QR
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="btn-toggle-theme p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+          >
+            <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+            <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+          </button>
+          <button
+            type="button"
+            class="btn-logout p-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+          >
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- ==========================================
+         MAIN CONTENT CONTAINER
+         ========================================== -->
+      <main
+        class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-24 md:pb-10"
+      >
+        <!-- VIEW 1: DASHBOARD (ADMIN ONLY) -->
+        <div id="view-dashboard" class="app-view hidden space-y-6">
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+          >
+            <div>
+              <h2 class="text-xl sm:text-2xl font-bold">Dashboard Aset</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                Ringkasan inventaris dan kondisi aset perusahaan
+              </p>
+            </div>
+            <button
+              id="btn-refresh-data"
+              class="self-start sm:self-auto px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 transition"
+            >
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh Data
             </button>
           </div>
 
-          <form id="assetForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="hidden" name="ID_Aset" />
-            <div class="md:col-span-2" id="qrCodeWrap">
-              <label class="label">Kode QR</label>
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div
+              class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >Total Aset</span
+                >
+                <div
+                  class="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"
+                >
+                  <i data-lucide="package" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <p id="kpi-total-aset" class="text-2xl font-bold">0</p>
+            </div>
+
+            <div
+              class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >Total Nilai</span
+                >
+                <div
+                  class="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg"
+                >
+                  <i data-lucide="banknote" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <p
+                id="kpi-total-nilai"
+                class="text-lg sm:text-xl font-bold truncate"
+              >
+                Rp 0
+              </p>
+            </div>
+
+            <div
+              class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >Kondisi Baik</span
+                >
+                <div
+                  class="p-2 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-lg"
+                >
+                  <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <p
+                id="kpi-kondisi-baik"
+                class="text-2xl font-bold text-teal-600 dark:text-teal-400"
+              >
+                0
+              </p>
+            </div>
+
+            <div
+              class="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span
+                  class="text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >Perlu Perhatian</span
+                >
+                <div
+                  class="p-2 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg"
+                >
+                  <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                </div>
+              </div>
+              <p
+                id="kpi-kondisi-rusak"
+                class="text-2xl font-bold text-amber-600 dark:text-amber-400"
+              >
+                0
+              </p>
+            </div>
+          </div>
+
+          <!-- Aktivitas Audit Terbaru -->
+          <div
+            class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm"
+          >
+            <h3 class="font-bold text-base mb-4 flex items-center gap-2">
+              <i data-lucide="history" class="w-4 h-4 text-blue-600"></i> Log
+              Aktivitas & Stock Opname Terbaru
+            </h3>
+            <div
+              id="dashboard-recent-logs"
+              class="divide-y divide-slate-100 dark:divide-slate-700 text-sm"
+            >
+              <p class="text-slate-400 py-4 text-center">
+                Belum ada aktivitas tercatat.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 2: SCAN QR CEPAT (ADMIN & STAFF) -->
+        <div id="view-scan" class="app-view hidden max-w-lg mx-auto space-y-5">
+          <div class="text-center">
+            <h2 class="text-xl font-bold">Scan QR Code Aset</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              Arahkan kamera ke stiker QR aset untuk cek detail atau stock
+              opname
+            </p>
+          </div>
+
+          <div
+            class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4"
+          >
+            <div
+              id="qr-reader"
+              class="w-full overflow-hidden rounded-xl bg-slate-900 min-h-[260px] flex items-center justify-center text-slate-400 text-sm"
+            >
+              Kamera belum aktif
+            </div>
+
+            <div class="flex gap-2">
+              <button
+                id="btn-start-scan"
+                type="button"
+                class="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition"
+              >
+                <i data-lucide="camera" class="w-4 h-4"></i> Mulai Kamera
+              </button>
+              <button
+                id="btn-stop-scan"
+                type="button"
+                class="hidden flex-1 py-2.5 px-4 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition"
+              >
+                <i data-lucide="camera-off" class="w-4 h-4"></i> Hentikan
+              </button>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 dark:border-slate-700">
+              <label
+                class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+                >Atau masukkan Kode QR secara manual:</label
+              >
               <div class="flex gap-2">
                 <input
-                  name="Kode_QR"
-                  class="input flex-1"
-                  placeholder="Kosongkan untuk auto-generate"
+                  type="text"
+                  id="manual-qr-lookup"
+                  placeholder="Contoh: AST-20261120-A1B2"
+                  class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
+                  id="btn-manual-lookup"
                   type="button"
-                  id="btnFillQr"
-                  class="btn-secondary whitespace-nowrap"
+                  class="px-4 py-2 bg-slate-800 dark:bg-slate-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition"
                 >
-                  Scan Kode
+                  Cari
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 3: DAFTAR ASET (ADMIN & STAFF) -->
+        <div id="view-aset" class="app-view hidden space-y-4">
+          <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div>
+              <h2 class="text-xl sm:text-2xl font-bold">
+                Daftar Aset Perusahaan
+              </h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                Kelola dan telusuri seluruh inventaris terdaftar
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                id="btn-export-csv"
+                class="admin-only px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-sm transition"
+              >
+                <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+              </button>
+              <button
+                id="btn-goto-add"
+                class="admin-only px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-sm transition"
+              >
+                <i data-lucide="plus" class="w-4 h-4"></i> Tambah
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Bar -->
+          <div
+            class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+          >
+            <div class="relative">
+              <i
+                data-lucide="search"
+                class="w-4 h-4 absolute left-3.5 top-3 text-slate-400"
+              ></i>
+              <input
+                type="text"
+                id="filter-search"
+                placeholder="Cari nama, kode QR, PIC..."
+                class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <select
+              id="filter-kategori"
+              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none"
+            >
+              <option value="">Semua Kategori</option>
+              <option value="Peralatan IT">Peralatan IT</option>
+              <option value="Mesin Produksi">Mesin Produksi</option>
+              <option value="Kendaraan">Kendaraan</option>
+              <option value="Lain-lain">Lain-lain</option>
+            </select>
+
+            <select
+              id="filter-lokasi"
+              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none"
+            >
+              <option value="">Semua Lokasi</option>
+            </select>
+
+            <select
+              id="filter-kondisi"
+              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none"
+            >
+              <option value="">Semua Kondisi</option>
+              <option value="Baik">Baik</option>
+              <option value="Rusak Ringan">Rusak Ringan</option>
+              <option value="Rusak Berat">Rusak Berat</option>
+              <option value="Dalam Perbaikan">Dalam Perbaikan</option>
+            </select>
+          </div>
+
+          <!-- Desktop Table View -->
+          <div
+            class="hidden md:block bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm"
+          >
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr
+                    class="bg-slate-100/80 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                  >
+                    <th class="py-3.5 px-4 font-semibold">Kode QR</th>
+                    <th class="py-3.5 px-4 font-semibold">Nama Aset</th>
+                    <th class="py-3.5 px-4 font-semibold">Kategori</th>
+                    <th class="py-3.5 px-4 font-semibold">Lokasi & PIC</th>
+                    <th class="py-3.5 px-4 font-semibold">Kondisi</th>
+                    <th class="py-3.5 px-4 font-semibold text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody
+                  id="aset-table-body"
+                  class="divide-y divide-slate-100 dark:divide-slate-700"
+                >
+                  <!-- Diisi via app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Mobile Card List View -->
+          <div id="aset-mobile-list" class="grid grid-cols-1 gap-3 md:hidden">
+            <!-- Diisi via app.js -->
+          </div>
+        </div>
+
+        <!-- VIEW 4: FORM TAMBAH / EDIT ASET (ADMIN ONLY) -->
+        <div id="view-form" class="app-view hidden max-w-3xl mx-auto space-y-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 id="form-aset-title" class="text-xl sm:text-2xl font-bold">
+                Tambah Aset Baru
+              </h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400">
+                Lengkapi informasi aset perusahaan di bawah ini
+              </p>
+            </div>
+            <button
+              type="button"
+              id="btn-cancel-form"
+              class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Batal
+            </button>
+          </div>
+
+          <!-- Mode Pilih Input QR (Saat Tambah Baru) -->
+          <div
+            id="add-mode-selector"
+            class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-2xl space-y-3"
+          >
+            <p
+              class="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300"
+            >
+              Metode Kode QR Aset
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                id="btn-mode-manual"
+                class="py-2.5 px-4 rounded-xl bg-blue-600 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-sm"
+              >
+                <i data-lucide="sparkles" class="w-4 h-4"></i> Input Manual &
+                Auto-Generate
+              </button>
+              <button
+                type="button"
+                id="btn-mode-scan-qr"
+                class="py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+              >
+                <i data-lucide="scan-line" class="w-4 h-4"></i> Scan Stiker QR
+                yang Sudah Ada
+              </button>
+            </div>
+
+            <!-- Mini Scanner untuk Mode Scan QR Baru -->
+            <div id="form-qr-scanner-box" class="hidden pt-2">
+              <div
+                id="form-qr-reader"
+                class="w-full max-w-sm mx-auto rounded-xl overflow-hidden bg-slate-900"
+              ></div>
+              <button
+                type="button"
+                id="btn-close-form-scanner"
+                class="mt-2 w-full py-1.5 text-xs text-red-600 dark:text-red-400 font-medium"
+              >
+                Tutup Kamera Scanner
+              </button>
+            </div>
+          </div>
+
+          <!-- Form Input Utama -->
+          <form
+            id="aset-form"
+            class="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4"
+          >
+            <input type="hidden" id="aset-doc-id" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  for="input-kode-qr"
+                  class="block text-sm font-medium mb-1"
+                  >Kode QR</label
+                >
+                <input
+                  type="text"
+                  id="input-kode-qr"
+                  placeholder="Kosongkan untuk auto-generate"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  for="input-kategori"
+                  class="block text-sm font-medium mb-1"
+                  >Kategori Aset <span class="text-red-500">*</span></label
+                >
+                <select
+                  id="input-kategori"
+                  required
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Peralatan IT">Peralatan IT</option>
+                  <option value="Mesin Produksi">Mesin Produksi</option>
+                  <option value="Kendaraan">Kendaraan</option>
+                  <option value="Lain-lain">Lain-lain</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  for="input-nama-aset"
+                  class="block text-sm font-medium mb-1"
+                  >Nama Aset <span class="text-red-500">*</span></label
+                >
+                <input
+                  type="text"
+                  id="input-nama-aset"
+                  required
+                  placeholder="Contoh: Laptop ThinkPad X1 / Forklift Toyota"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  for="input-merk-tipe"
+                  class="block text-sm font-medium mb-1"
+                  >Merk & Tipe</label
+                >
+                <input
+                  type="text"
+                  id="input-merk-tipe"
+                  placeholder="Contoh: Lenovo ThinkPad T14 Gen 3"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <!-- DYNAMIC FIELDS BERDASARKAN KATEGORI -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div id="field-spesifikasi">
+                <label
+                  for="input-spesifikasi"
+                  class="block text-sm font-medium mb-1"
+                  >Spesifikasi Detail</label
+                >
+                <input
+                  type="text"
+                  id="input-spesifikasi"
+                  placeholder="RAM / Storage / Daya / Kapasitas"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div id="field-no-seri">
+                <label
+                  for="input-no-seri"
+                  class="block text-sm font-medium mb-1"
+                  >Nomor Seri / Rangka / Mesin</label
+                >
+                <input
+                  type="text"
+                  id="input-no-seri"
+                  placeholder="Serial Number / No. Rangka"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div id="field-plat-nomor" class="hidden">
+                <label
+                  for="input-plat-nomor"
+                  class="block text-sm font-medium mb-1"
+                  >Plat Nomor Kendaraan</label
+                >
+                <input
+                  type="text"
+                  id="input-plat-nomor"
+                  placeholder="Contoh: B 1234 XYZ"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div id="field-tahun" class="hidden">
+                <label for="input-tahun" class="block text-sm font-medium mb-1"
+                  >Tahun Pembuatan</label
+                >
+                <input
+                  type="number"
+                  id="input-tahun"
+                  placeholder="Contoh: 2024"
+                  min="1980"
+                  max="2099"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div id="field-garansi-stnk">
+                <label
+                  id="label-garansi-stnk"
+                  for="input-garansi-stnk"
+                  class="block text-sm font-medium mb-1"
+                  >Batas Garansi / STNK</label
+                >
+                <input
+                  type="date"
+                  id="input-garansi-stnk"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div id="field-maintenance" class="hidden">
+                <label
+                  for="input-maintenance"
+                  class="block text-sm font-medium mb-1"
+                  >Jadwal Maintenance Berikutnya</label
+                >
+                <input
+                  type="date"
+                  id="input-maintenance"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <hr class="border-slate-200 dark:border-slate-700" />
+
+            <!-- Informasi Perolehan & Penempatan -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  for="input-tanggal-beli"
+                  class="block text-sm font-medium mb-1"
+                  >Tanggal Beli</label
+                >
+                <input
+                  type="date"
+                  id="input-tanggal-beli"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label for="input-harga" class="block text-sm font-medium mb-1"
+                  >Harga Perolehan (Rp)</label
+                >
+                <input
+                  type="number"
+                  id="input-harga"
+                  placeholder="0"
+                  min="0"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label for="input-lokasi" class="block text-sm font-medium mb-1"
+                  >Lokasi Penempatan <span class="text-red-500">*</span></label
+                >
+                <input
+                  type="text"
+                  id="input-lokasi"
+                  required
+                  list="list-lokasi-options"
+                  placeholder="Contoh: Gudang Utama / Ruang IT"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="list-lokasi-options"></datalist>
+              </div>
+
+              <div>
+                <label for="input-pic" class="block text-sm font-medium mb-1"
+                  >PIC / Penanggung Jawab
+                  <span class="text-red-500">*</span></label
+                >
+                <input
+                  type="text"
+                  id="input-pic"
+                  required
+                  placeholder="Nama Karyawan / Divisi"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  for="input-kondisi"
+                  class="block text-sm font-medium mb-1"
+                  >Kondisi Saat Ini</label
+                >
+                <select
+                  id="input-kondisi"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Baik">Baik</option>
+                  <option value="Rusak Ringan">Rusak Ringan</option>
+                  <option value="Rusak Berat">Rusak Berat</option>
+                  <option value="Dalam Perbaikan">Dalam Perbaikan</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="input-status" class="block text-sm font-medium mb-1"
+                  >Status Aset</label
+                >
+                <select
+                  id="input-status"
+                  class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Aktif">Aktif</option>
+                  <option value="Dipinjam">Dipinjam</option>
+                  <option value="Gudang">Gudang</option>
+                  <option value="Disposal">Disposal</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Upload Foto & Dokumen -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label for="input-foto" class="block text-sm font-medium mb-1"
+                  >Foto Fisik Aset (Kamera/Galeri)</label
+                >
+                <input
+                  type="file"
+                  id="input-foto"
+                  accept="image/*"
+                  capture="environment"
+                  class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/40 dark:file:text-blue-300 hover:file:bg-blue-100"
+                />
+                <img
+                  id="preview-foto"
+                  src=""
+                  alt="Preview Foto"
+                  class="hidden mt-2 h-28 w-auto rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                />
+              </div>
+
+              <div>
+                <label
+                  for="input-dokumen"
+                  class="block text-sm font-medium mb-1"
+                  >Dokumen (Invoice/STNK/Garansi)</label
+                >
+                <input
+                  type="file"
+                  id="input-dokumen"
+                  accept="image/*,.pdf"
+                  class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 dark:file:bg-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200"
+                />
+                <p
+                  id="existing-dokumen-info"
+                  class="hidden mt-2 text-xs text-blue-600 dark:text-blue-400 truncate"
+                ></p>
               </div>
             </div>
 
             <div>
-              <label class="label">Nama Aset *</label
-              ><input name="Nama_Aset" required class="input" />
-            </div>
-            <div>
-              <label class="label">Kategori *</label>
-              <select name="Kategori" required class="input"></select>
-            </div>
-            <div>
-              <label class="label">Merk / Tipe</label
-              ><input name="Merk_Tipe" class="input" />
-            </div>
-            <div>
-              <label class="label">Lokasi</label
-              ><select name="Lokasi" class="input"></select>
-            </div>
-            <div class="md:col-span-2">
-              <label class="label">Spesifikasi Detail</label
-              ><textarea
-                name="Spesifikasi_Detail"
+              <label for="input-catatan" class="block text-sm font-medium mb-1"
+                >Catatan Tambahan</label
+              >
+              <textarea
+                id="input-catatan"
                 rows="2"
-                class="input"
+                placeholder="Keterangan tambahan mengenai aset..."
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               ></textarea>
             </div>
-            <div class="field-dynamic" data-hide-for="Peralatan IT">
-              <label class="label">No. Seri / Mesin</label
-              ><input name="No_Seri_atau_Mesin" class="input" />
-            </div>
-            <div class="field-dynamic" data-only-for="Kendaraan">
-              <label class="label">Plat Nomor</label
-              ><input name="Plat_Nomor" class="input" />
-            </div>
-            <div>
-              <label class="label">Tahun Pembuatan</label
-              ><input name="Tahun_Pembuatan" type="number" class="input" />
-            </div>
-            <div>
-              <label class="label">Tanggal Beli</label
-              ><input name="Tanggal_Beli" type="date" class="input" />
-            </div>
-            <div>
-              <label class="label">Harga Perolehan (Rp)</label
-              ><input
-                name="Harga_Perolehan"
-                type="number"
-                min="0"
-                class="input"
-              />
-            </div>
-            <div class="field-dynamic" data-hide-for="Lain-lain">
-              <label class="label">Batas Garansi / STNK</label
-              ><input
-                name="Batas_Garansi_atau_STNK"
-                type="date"
-                class="input"
-              />
-            </div>
-            <div>
-              <label class="label">Jadwal Maintenance</label
-              ><input name="Jadwal_Maintenance" type="date" class="input" />
-            </div>
-            <div>
-              <label class="label">PIC Penanggung Jawab</label
-              ><input name="PIC_Penanggung_Jawab" class="input" />
-            </div>
-            <div>
-              <label class="label">Kondisi</label
-              ><select name="Kondisi" class="input"></select>
-            </div>
-            <div>
-              <label class="label">Status</label
-              ><select name="Status" class="input"></select>
-            </div>
-            <div>
-              <label class="label">Foto Aset</label
-              ><input type="file" name="foto" accept="image/*" class="input" />
-            </div>
-            <div>
-              <label class="label">Dokumen (PDF/Gambar)</label
-              ><input
-                type="file"
-                name="dokumen"
-                accept="application/pdf,image/*"
-                class="input"
-              />
-            </div>
-            <div class="md:col-span-2">
-              <label class="label">Catatan</label
-              ><textarea name="Catatan" rows="2" class="input"></textarea>
-            </div>
 
-            <div class="md:col-span-2 flex gap-2 justify-end">
-              <button type="button" id="btnCancelForm" class="btn-secondary">
-                Batal
+            <div class="pt-2 flex justify-end gap-3">
+              <button
+                type="submit"
+                class="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <i data-lucide="save" class="w-4 h-4"></i> Simpan Data Aset
               </button>
-              <button type="submit" class="btn-primary">Simpan</button>
             </div>
           </form>
         </div>
-      </section>
+      </main>
 
-      <!-- ===== DETAIL ASET (Modal) ===== -->
-      <div
-        id="assetModal"
-        class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4"
+      <!-- MOBILE BOTTOM NAVIGATION BAR (Muncul di layar < 768px) -->
+      <nav
+        class="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 flex justify-around items-center h-16 px-2"
       >
-        <div
-          class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6"
+        <button
+          data-nav="dashboard"
+          class="nav-btn admin-only flex flex-col items-center justify-center flex-1 py-1 text-xs font-medium text-slate-500 dark:text-slate-400"
         >
-          <div class="flex justify-between items-start mb-4">
-            <h2 class="text-xl font-bold" id="modalTitle">Detail Aset</h2>
-            <button id="modalClose" class="text-2xl leading-none">
-              &times;
-            </button>
+          <i data-lucide="layout-dashboard" class="w-5 h-5 mb-0.5"></i>
+          <span>Dashboard</span>
+        </button>
+        <button
+          data-nav="scan"
+          class="nav-btn flex flex-col items-center justify-center flex-1 py-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+        >
+          <i data-lucide="qr-code" class="w-5 h-5 mb-0.5"></i>
+          <span>Scan QR</span>
+        </button>
+        <button
+          data-nav="aset"
+          class="nav-btn flex flex-col items-center justify-center flex-1 py-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+        >
+          <i data-lucide="package" class="w-5 h-5 mb-0.5"></i>
+          <span>Aset</span>
+        </button>
+        <button
+          data-nav="form"
+          class="nav-btn admin-only flex flex-col items-center justify-center flex-1 py-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+        >
+          <i data-lucide="plus-circle" class="w-5 h-5 mb-0.5"></i>
+          <span>Tambah</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ==========================================
+       MODAL DETAIL ASET & STOCK OPNAME
+       ========================================== -->
+    <div
+      id="modal-detail"
+      class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4 flex items-center justify-center"
+    >
+      <div
+        class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-auto"
+      >
+        <!-- Header Modal -->
+        <div
+          class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between"
+        >
+          <div>
+            <span
+              id="detail-kode-qr"
+              class="text-xs font-mono font-bold px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+              >AST-000</span
+            >
+            <h3 id="detail-nama-aset" class="text-lg font-bold mt-1">
+              Nama Aset
+            </h3>
           </div>
-          <div id="modalBody" class="space-y-4 text-sm"></div>
-          <div class="mt-6 flex flex-wrap gap-2 justify-end">
-            <button id="btnStockOpname" class="btn-primary">
-              Stock Opname
-            </button>
-            <button id="btnMove" class="btn-secondary">Pindah Lokasi</button>
-            <button id="btnEditAsset" class="btn-secondary admin-only">
-              Edit
-            </button>
-            <button id="btnDeleteAsset" class="btn-danger admin-only">
-              Hapus
-            </button>
-            <button id="btnPrintQr" class="btn-secondary">
-              Cetak Label QR
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== RIWAYAT LOG ===== -->
-      <section id="page-logs" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4">Riwayat Aktivitas</h1>
-        <div class="card overflow-x-auto p-0">
-          <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                <th class="th">Tanggal</th>
-                <th class="th">Aset</th>
-                <th class="th">Aktivitas</th>
-                <th class="th">Lokasi</th>
-                <th class="th">Kondisi</th>
-                <th class="th">Petugas</th>
-              </tr>
-            </thead>
-            <tbody
-              id="logTableBody"
-              class="divide-y divide-gray-200 dark:divide-gray-700"
-            ></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- ===== PENGGUNA (Admin) ===== -->
-      <section id="page-users" class="page hidden">
-        <div class="flex justify-between items-center mb-4">
-          <h1 class="text-2xl font-bold">Manajemen Pengguna</h1>
-          <button id="btnAddUser" class="btn-primary">+ Pengguna</button>
-        </div>
-        <div class="card overflow-x-auto p-0">
-          <table class="min-w-full text-sm">
-            <thead class="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                <th class="th">Username</th>
-                <th class="th">Nama</th>
-                <th class="th">Role</th>
-                <th class="th">Status</th>
-                <th class="th">Aksi</th>
-              </tr>
-            </thead>
-            <tbody
-              id="userTableBody"
-              class="divide-y divide-gray-200 dark:divide-gray-700"
-            ></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- ===== REFERENSI (Admin) ===== -->
-      <section id="page-ref" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4">Data Referensi</h1>
-        <div class="grid md:grid-cols-2 gap-4" id="refGrid"></div>
-      </section>
-
-      <!-- ===== PROFIL ===== -->
-      <section id="page-profile" class="page hidden">
-        <h1 class="text-2xl font-bold mb-4">Profil Saya</h1>
-        <div class="card max-w-md space-y-3">
-          <p>
-            <span class="text-gray-500">Nama:</span>
-            <strong id="profName"></strong>
-          </p>
-          <p>
-            <span class="text-gray-500">Username:</span>
-            <span id="profUser"></span>
-          </p>
-          <p>
-            <span class="text-gray-500">Role:</span>
-            <span id="profRole" class="badge"></span>
-          </p>
-          <hr class="dark:border-gray-700" />
-          <h2 class="font-semibold">Ganti Password</h2>
-          <form id="changePassForm" class="space-y-3">
-            <input
-              type="password"
-              id="oldPass"
-              placeholder="Password lama"
-              required
-              class="input"
-            />
-            <input
-              type="password"
-              id="newPass"
-              placeholder="Password baru (min 6)"
-              required
-              minlength="6"
-              class="input"
-            />
-            <button class="btn-primary w-full">Simpan Password</button>
-          </form>
-          <button id="btnLogoutProfile" class="btn-danger w-full">
-            Keluar
+          <button
+            type="button"
+            id="btn-close-detail"
+            class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <i data-lucide="x" class="w-5 h-5"></i>
           </button>
         </div>
-      </section>
-    </main>
 
-    <!-- ========================= BOTTOM NAVBAR (Mobile) ========================= -->
-    <nav
-      id="bottomNav"
-      class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 pb-[env(safe-area-inset-bottom)]"
-    >
-      <div class="grid grid-cols-4 h-16">
-        <button data-nav="home" class="bottom-link">
-          <span class="text-xl">🏠</span><span>Home</span>
-        </button>
-        <button data-nav="scan" class="bottom-link">
-          <span class="text-xl">📷</span><span>Scan QR</span>
-        </button>
-        <button data-nav="assets" class="bottom-link">
-          <span class="text-xl">📦</span><span>Aset</span>
-        </button>
-        <button data-nav="profile" class="bottom-link">
-          <span class="text-xl">👤</span><span>Profil</span>
-        </button>
-      </div>
-    </nav>
+        <!-- Body Modal -->
+        <div class="p-5 max-h-[75vh] overflow-y-auto space-y-5">
+          <!-- Foto & Info Utama -->
+          <div class="flex flex-col sm:flex-row gap-4">
+            <div
+              class="w-full sm:w-40 h-40 rounded-xl bg-slate-100 dark:bg-slate-700 overflow-hidden flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-600"
+            >
+              <img
+                id="detail-foto"
+                src=""
+                alt="Foto Aset"
+                class="hidden w-full h-full object-cover"
+              />
+              <div id="detail-no-foto" class="text-center text-slate-400 p-2">
+                <i data-lucide="image-off" class="w-8 h-8 mx-auto mb-1"></i>
+                <span class="text-xs">Tanpa Foto</span>
+              </div>
+            </div>
 
-    <!-- ========================= TOAST ========================= -->
-    <div
-      id="toast"
-      class="fixed top-4 right-4 z-[60] hidden px-4 py-3 rounded-lg shadow-lg text-white text-sm"
-    ></div>
+            <div class="flex-1 grid grid-cols-2 gap-2.5 text-sm">
+              <div>
+                <span class="text-xs text-slate-400 block">Kategori</span>
+                <span id="detail-kategori" class="font-medium">-</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Merk / Tipe</span>
+                <span id="detail-merk" class="font-medium">-</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Lokasi</span>
+                <span id="detail-lokasi" class="font-medium">-</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">PIC</span>
+                <span id="detail-pic" class="font-medium">-</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Kondisi</span>
+                <span id="detail-kondisi" class="font-semibold">-</span>
+              </div>
+              <div>
+                <span class="text-xs text-slate-400 block">Terakhir Audit</span>
+                <span id="detail-audit" class="font-medium text-xs">-</span>
+              </div>
+            </div>
+          </div>
 
-    <!-- ========================= LOADING ========================= -->
-    <div
-      id="loading"
-      class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40"
-    >
-      <div class="bg-white dark:bg-gray-800 rounded-xl px-6 py-4 text-sm">
-        Memproses...
+          <!-- Spesifikasi Tambahan -->
+          <div
+            id="detail-extra-specs"
+            class="bg-slate-50 dark:bg-slate-700/40 p-3.5 rounded-xl text-xs space-y-1.5 border border-slate-200 dark:border-slate-700"
+          >
+            <!-- Diisi dinamis via JS -->
+          </div>
+
+          <!-- Link Dokumen & Aksi Admin -->
+          <div class="flex flex-wrap items-center gap-2">
+            <a
+              id="detail-link-dokumen"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="hidden px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1.5"
+            >
+              <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-600"></i>
+              Lihat Dokumen
+            </a>
+            <button
+              type="button"
+              id="btn-reprint-qr"
+              class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center gap-1.5"
+            >
+              <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Lihat / Cetak QR
+            </button>
+            <button
+              type="button"
+              id="btn-edit-aset"
+              class="admin-only px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 flex items-center gap-1.5"
+            >
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Aset
+            </button>
+            <button
+              type="button"
+              id="btn-delete-aset"
+              class="admin-only px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-100 flex items-center gap-1.5"
+            >
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus
+            </button>
+          </div>
+
+          <!-- FORM STOCK OPNAME / AUDIT CEPAT (ADMIN & STAFF) -->
+          <form
+            id="opname-form"
+            class="bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-xl space-y-3"
+          >
+            <h4
+              class="text-sm font-bold text-blue-800 dark:text-blue-300 flex items-center gap-1.5"
+            >
+              <i data-lucide="clipboard-check" class="w-4 h-4"></i> Stock Opname
+              / Update Kondisi Lapangan
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium mb-1"
+                  >Kondisi Aktual</label
+                >
+                <select
+                  id="opname-kondisi"
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+                >
+                  <option value="Baik">Baik</option>
+                  <option value="Rusak Ringan">Rusak Ringan</option>
+                  <option value="Rusak Berat">Rusak Berat</option>
+                  <option value="Dalam Perbaikan">Dalam Perbaikan</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium mb-1"
+                  >Lokasi Aktual</label
+                >
+                <input
+                  type="text"
+                  id="opname-lokasi"
+                  required
+                  class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium mb-1"
+                >Catatan Audit</label
+              >
+              <input
+                type="text"
+                id="opname-catatan"
+                placeholder="Contoh: Fisik lengkap, berfungsi normal"
+                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm"
+              />
+            </div>
+            <button
+              type="submit"
+              class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition"
+            >
+              Simpan Hasil Stock Opname
+            </button>
+          </form>
+
+          <!-- Riwayat Log Aset Ini -->
+          <div>
+            <h4
+              class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2"
+            >
+              Riwayat Aktivitas Aset
+            </h4>
+            <div
+              id="detail-log-list"
+              class="space-y-2 text-xs max-h-40 overflow-y-auto"
+            >
+              <!-- Diisi via JS -->
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- ==========================================
+       MODAL QR CODE GENERATOR & PRINT LABEL
+       ========================================== -->
+    <div
+      id="modal-qr"
+      class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm p-4 flex items-center justify-center"
+    >
+      <div
+        class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 text-center space-y-4"
+      >
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-base">Label QR Code Aset</h3>
+          <button
+            type="button"
+            id="btn-close-qr"
+            class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Area Stiker yang Akan Di-Print -->
+        <div
+          id="printable-qr-area"
+          class="bg-white text-slate-900 p-4 rounded-xl border-2 border-dashed border-slate-300 inline-flex flex-col items-center justify-center mx-auto"
+        >
+          <div id="qrcode-canvas" class="p-2 bg-white"></div>
+          <p
+            id="qr-label-code"
+            class="font-mono font-bold text-sm mt-2 tracking-wide"
+          >
+            AST-000000
+          </p>
+          <p
+            id="qr-label-name"
+            class="text-xs font-medium text-slate-600 max-w-[200px] truncate"
+          >
+            Nama Aset
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5 pt-2">
+          <button
+            type="button"
+            id="btn-download-qr"
+            class="py-2.5 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i> Unduh PNG
+          </button>
+          <button
+            type="button"
+            id="btn-print-qr"
+            class="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            <i data-lucide="printer" class="w-4 h-4"></i> Cetak Label
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main App Module -->
+    <script type="module" src="app.js"></script>
   </body>
 </html>
