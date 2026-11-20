@@ -43,7 +43,7 @@
         -webkit-tap-highlight-color: transparent;
       }
       .safe-bottom {
-        padding-bottom: calc(env(safe-area-inset-bottom) + 5.5rem);
+        padding-bottom: calc(env(safe-area-inset-bottom) + 6rem);
       }
       .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -57,7 +57,7 @@
         object-fit: cover;
       }
 
-      /* Efek lingkaran dekoratif halus seperti pada desain referensi */
+      /* Efek lingkaran dekoratif halus */
       .hero-circle-bg {
         background: radial-gradient(
           circle at 50% 42%,
@@ -94,7 +94,7 @@
     <!-- LOADING OVERLAY -->
     <div
       id="loadingOverlay"
-      class="hidden fixed inset-0 z-[100] bg-emeraldDeep/40 backdrop-blur-xs flex items-center justify-center"
+      class="hidden fixed inset-0 z-[100] bg-emeraldDeep/40 backdrop-blur-sm flex items-center justify-center"
     >
       <div
         class="bg-white rounded-3xl px-6 py-5 shadow-2xl flex items-center gap-4"
@@ -111,7 +111,7 @@
     <!-- TOAST -->
     <div
       id="toast"
-      class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[90%] px-5 py-3.5 rounded-2xl shadow-xl text-sm font-semibold text-white text-center"
+      class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[90%] px-5 py-3.5 rounded-2xl shadow-xl text-sm font-semibold text-white text-center transition-all"
     ></div>
 
     <!-- ==================== LOGIN VIEW ==================== -->
@@ -119,7 +119,7 @@
       id="loginView"
       class="min-h-screen flex items-center justify-center p-5 bg-emeraldDeep hero-circle-bg relative overflow-hidden"
     >
-      <!-- Dekorasi titik khas referensi -->
+      <!-- Dekorasi titik khas -->
       <div
         class="hidden sm:grid grid-cols-5 gap-2.5 absolute top-10 right-12 opacity-40"
       >
@@ -191,9 +191,9 @@
 
     <!-- ==================== MAIN APP SHELL ==================== -->
     <div id="appShell" class="hidden min-h-screen md:flex">
-      <!-- DESKTOP SIDEBAR (Hanya tampil di layar >= 768px) -->
+      <!-- DESKTOP SIDEBAR (Lebar diperbaiki menjadi w-72 agar sesuai Tailwind) -->
       <aside
-        class="hidden md:flex md:flex-col md:w-68 md:fixed md:inset-y-0 bg-emeraldDeep text-white shadow-2xl z-30"
+        class="hidden md:flex md:flex-col md:w-72 md:fixed md:inset-y-0 bg-emeraldDeep text-white shadow-2xl z-40"
       >
         <div
           class="h-20 px-6 flex items-center gap-3.5 border-b border-white/10"
@@ -215,7 +215,7 @@
           <button
             data-nav="dashboard"
             onclick="navigate('dashboard')"
-            class="admin-only nav-desktop w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
+            class="admin-only nav-desktop w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
           >
             <i class="fa-solid fa-table-cells-large w-5 text-center"></i>
             Beranda & KPI
@@ -223,21 +223,21 @@
           <button
             data-nav="assets"
             onclick="navigate('assets')"
-            class="nav-desktop w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
+            class="nav-desktop w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
           >
             <i class="fa-solid fa-layer-group w-5 text-center"></i> Katalog Aset
           </button>
           <button
             data-nav="form"
             onclick="openAddAssetForm()"
-            class="admin-only nav-desktop w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
+            class="admin-only nav-desktop w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
           >
             <i class="fa-solid fa-circle-plus w-5 text-center"></i> Tambah Aset
           </button>
           <button
             data-nav="scan"
             onclick="navigate('scan')"
-            class="nav-desktop w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
+            class="nav-desktop w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-semibold text-emerald-100 hover:bg-white/10 transition"
           >
             <i class="fa-solid fa-qrcode w-5 text-center"></i> Scan QR & Opname
           </button>
@@ -246,7 +246,7 @@
         <div class="p-5 border-t border-white/10">
           <div class="flex items-center gap-3 mb-4 bg-white/10 p-3 rounded-2xl">
             <div
-              class="w-10 h-10 rounded-full bg-amberWarm text-white flex items-center justify-center font-extrabold text-sm"
+              class="w-10 h-10 rounded-full bg-amberWarm text-white flex items-center justify-center font-extrabold text-sm shrink-0"
               id="deskAvatar"
             >
               A
@@ -275,49 +275,47 @@
         </div>
       </aside>
 
-      <!-- CONTENT WRAPPER -->
-      <div class="flex-1 md:pl-68 flex flex-col min-h-screen">
-        <!-- MOBILE TOP HEADER (Sesuai gaya bersih di gambar referensi) -->
+      <!-- CONTENT WRAPPER (Padding kiri disesuaikan dengan sidebar pl-72) -->
+      <div class="flex-1 md:pl-72 flex flex-col min-h-screen">
+        <!-- MOBILE TOP HEADER -->
         <header
-          class="md:hidden sticky top-0 z-20 bg-creamBg/90 backdrop-blur-md px-5 pt-4 pb-3 flex items-center justify-between"
+          class="md:hidden sticky top-0 z-20 bg-creamBg/90 backdrop-blur-md px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-200/50"
         >
           <button
             onclick="
               navigate(STATE.user?.role === 'Admin' ? 'dashboard' : 'assets')
             "
-            class="w-10 h-10 rounded-2xl bg-white shadow-xs flex items-center justify-center text-slate-400 hover:text-emeraldDeep"
+            class="w-10 h-10 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-500 hover:text-emeraldDeep"
           >
             <i class="fa-solid fa-grip text-lg"></i>
           </button>
 
-          <div class="text-center">
+          <div class="text-center px-2 truncate">
             <div
-              class="text-xs font-extrabold text-slate-800"
+              class="text-sm font-extrabold text-slate-800 truncate"
               id="mobHeaderTitle"
             >
               Manajemen Aset
             </div>
             <div
-              class="text-[10px] font-semibold text-emeraldDeep"
+              class="text-[10px] font-semibold text-emeraldDeep truncate"
               id="mobUserLabel"
             >
               -
             </div>
           </div>
 
-          <div class="flex items-center gap-2">
-            <button
-              onclick="doLogout()"
-              title="Keluar"
-              class="w-10 h-10 rounded-full bg-amberWarm/20 border-2 border-amberWarm text-amberWarm font-extrabold text-xs flex items-center justify-center shadow-xs"
-              id="mobAvatar"
-            >
-              A
-            </button>
-          </div>
+          <button
+            onclick="doLogout()"
+            title="Keluar"
+            class="w-10 h-10 rounded-full bg-amberWarm/20 border-2 border-amberWarm text-amberWarm font-extrabold text-xs flex items-center justify-center shadow-sm shrink-0"
+            id="mobAvatar"
+          >
+            A
+          </button>
         </header>
 
-        <!-- DESKTOP TOP BAR (>= 768px) -->
+        <!-- DESKTOP TOP BAR -->
         <header
           class="hidden md:flex sticky top-0 z-20 bg-creamBg/90 backdrop-blur-md border-b border-slate-200/70 px-8 h-20 items-center justify-between"
         >
@@ -328,26 +326,26 @@
             >
               Beranda
             </h2>
-            <p class="text-xs text-slate-400 font-medium">
+            <p class="text-xs text-slate-400 font-medium mt-0.5">
               Kelola, lacak, dan audit inventaris perusahaan
             </p>
           </div>
           <div class="flex items-center gap-3">
             <button
               onclick="loadInitialData(true)"
-              class="px-4 py-2.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs"
+              class="px-4 py-2.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-sm transition"
             >
               <i class="fa-solid fa-rotate mr-1.5 text-emeraldDeep"></i>Sinkron
             </button>
             <button
               onclick="exportFilteredCsv()"
-              class="admin-only px-4 py-2.5 rounded-full bg-amberWarm hover:opacity-95 text-white text-xs font-bold shadow-sm"
+              class="admin-only px-4 py-2.5 rounded-full bg-amberWarm hover:opacity-95 text-white text-xs font-bold shadow-sm transition"
             >
               <i class="fa-solid fa-file-csv mr-1.5"></i>Export CSV
             </button>
             <button
               onclick="openAddAssetForm()"
-              class="admin-only px-5 py-2.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white text-xs font-bold shadow-md shadow-emeraldDeep/20"
+              class="admin-only px-5 py-2.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white text-xs font-bold shadow-md shadow-emeraldDeep/20 transition"
             >
               <i class="fa-solid fa-plus mr-1.5"></i>Tambah Aset
             </button>
@@ -356,14 +354,14 @@
 
         <!-- MAIN CONTENT AREA -->
         <main
-          class="flex-1 px-5 py-3 md:p-8 safe-bottom md:pb-10 max-w-7xl w-full mx-auto"
+          class="flex-1 px-5 py-4 md:p-8 safe-bottom max-w-7xl w-full mx-auto"
         >
-          <!-- 1. DASHBOARD / BERANDA VIEW (Admin Only) -->
+          <!-- 1. DASHBOARD / BERANDA VIEW -->
           <section id="view-dashboard" class="view-section hidden space-y-6">
-            <!-- KPI Cards bergaya warna Emerald & Amber -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 md:gap-5">
+            <!-- KPI Cards Grid (Diperbaiki agar rapi di Mobile) -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
               <div
-                class="bg-emeraldDeep text-white p-5 rounded-3xl shadow-lg shadow-emeraldDeep/15 relative overflow-hidden"
+                class="col-span-2 sm:col-span-1 lg:col-span-1 bg-emeraldDeep text-white p-5 rounded-3xl shadow-lg shadow-emeraldDeep/15 relative overflow-hidden"
               >
                 <div class="text-xs font-semibold text-emerald-200">
                   Total Aset
@@ -374,14 +372,14 @@
                 ></i>
               </div>
               <div
-                class="bg-amberWarm text-white p-5 rounded-3xl shadow-lg shadow-amberWarm/20 col-span-2 lg:col-span-1 relative overflow-hidden"
+                class="col-span-2 sm:col-span-1 lg:col-span-1 bg-amberWarm text-white p-5 rounded-3xl shadow-lg shadow-amberWarm/20 relative overflow-hidden"
               >
                 <div class="text-xs font-semibold text-amber-100">
                   Total Nilai Aset
                 </div>
                 <div
                   id="kpiNilai"
-                  class="text-xl md:text-2xl font-extrabold mt-1 truncate"
+                  class="text-2xl font-extrabold mt-1 truncate"
                 >
                   Rp 0
                 </div>
@@ -390,7 +388,7 @@
                 ></i>
               </div>
               <div
-                class="bg-white p-5 rounded-3xl shadow-xs border border-slate-100"
+                class="col-span-1 bg-white p-5 rounded-3xl shadow-sm border border-slate-100"
               >
                 <div class="text-xs font-bold text-emeraldDeep">
                   Kondisi Baik
@@ -403,11 +401,9 @@
                 </div>
               </div>
               <div
-                class="bg-white p-5 rounded-3xl shadow-xs border border-slate-100"
+                class="col-span-1 bg-white p-5 rounded-3xl shadow-sm border border-slate-100"
               >
-                <div class="text-xs font-bold text-amberWarm">
-                  Perlu Perhatian
-                </div>
+                <div class="text-xs font-bold text-amberWarm">Perhatian</div>
                 <div
                   id="kpiRusak"
                   class="text-3xl font-extrabold text-slate-800 mt-1"
@@ -417,7 +413,7 @@
               </div>
             </div>
 
-            <!-- Horizontal Showcase "Aset Terbaru" (Seperti bagian "New Arrivals" di gambar) -->
+            <!-- Horizontal Showcase -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
                 <h3 class="text-base md:text-lg font-extrabold text-slate-900">
@@ -425,7 +421,7 @@
                 </h3>
                 <button
                   onclick="navigate('assets')"
-                  class="w-8 h-8 rounded-xl bg-amberWarm text-white flex items-center justify-center text-xs shadow-xs"
+                  class="w-8 h-8 rounded-xl bg-amberWarm text-white flex items-center justify-center text-xs shadow-sm hover:scale-105 transition"
                   title="Lihat Semua"
                 >
                   <i class="fa-solid fa-bars-staggered"></i>
@@ -433,21 +429,21 @@
               </div>
               <div
                 id="dashboardShowcase"
-                class="flex gap-4 overflow-x-auto no-scrollbar pb-2"
+                class="flex gap-4 overflow-x-auto no-scrollbar pb-3"
               ></div>
             </div>
 
             <!-- Riwayat Aktivitas -->
             <div
-              class="bg-white rounded-3xl shadow-xs border border-slate-100 p-5 md:p-6"
+              class="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 md:p-6"
             >
-              <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center justify-between mb-4">
                 <h3 class="font-extrabold text-slate-900 text-sm md:text-base">
                   Aktivitas Lapangan Terbaru
                 </h3>
                 <button
                   onclick="exportFilteredCsv()"
-                  class="md:hidden px-3 py-1 rounded-full bg-amberWarm/15 text-amberWarm text-xs font-bold"
+                  class="md:hidden px-3 py-1.5 rounded-full bg-amberWarm/15 text-amberWarm text-[11px] font-bold"
                 >
                   Export CSV
                 </button>
@@ -461,7 +457,6 @@
 
           <!-- 2. KATALOG / DAFTAR ASET VIEW -->
           <section id="view-assets" class="view-section hidden space-y-5">
-            <!-- Header Section ala Referensi -->
             <div class="flex items-center justify-between">
               <div>
                 <h3 class="text-lg md:text-xl font-extrabold text-slate-900">
@@ -476,7 +471,7 @@
               </div>
               <button
                 onclick="toggleFilterDrawer()"
-                class="w-9 h-9 rounded-xl bg-amberWarm text-white flex items-center justify-center shadow-sm"
+                class="w-9 h-9 rounded-xl bg-amberWarm text-white flex items-center justify-center shadow-sm hover:opacity-90"
                 title="Filter"
               >
                 <i class="fa-solid fa-sliders"></i>
@@ -486,7 +481,7 @@
             <!-- Search & Filter Bar -->
             <div
               id="filterBox"
-              class="bg-white p-4 rounded-3xl shadow-xs border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-3"
+              class="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-3"
             >
               <div class="relative">
                 <i
@@ -497,7 +492,7 @@
                   oninput="renderAssetList()"
                   type="text"
                   placeholder="Cari nama, QR, PIC..."
-                  class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
+                  class="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none transition"
                 />
               </div>
               <select
@@ -517,9 +512,9 @@
               ></select>
             </div>
 
-            <!-- DESKTOP TABLE VIEW (>= 768px) -->
+            <!-- DESKTOP TABLE VIEW -->
             <div
-              class="hidden md:block bg-white rounded-3xl shadow-xs border border-slate-100 overflow-hidden"
+              class="hidden md:block bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden"
             >
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-sm">
@@ -543,18 +538,18 @@
               </div>
             </div>
 
-            <!-- MOBILE VISUAL GRID CARDS (< 768px — Meniru kartu kuning/amber/emerald pada gambar referensi) -->
+            <!-- MOBILE VISUAL GRID CARDS -->
             <div
               id="mobileAssetCards"
-              class="md:hidden grid grid-cols-2 gap-4"
+              class="md:hidden grid grid-cols-2 gap-3.5"
             ></div>
 
-            <!-- Floating Filter/Scan Pill di Mobile (Seperti tombol bulat hijau di kanan bawah layar referensi) -->
+            <!-- Floating Scan Button -->
             <button
               onclick="navigate('scan')"
-              class="md:hidden fixed right-5 bottom-22 z-20 w-12 h-12 rounded-full bg-emeraldDeep text-white shadow-xl shadow-emeraldDeep/30 flex items-center justify-center active:scale-95 transition"
+              class="md:hidden fixed right-5 bottom-24 z-30 w-14 h-14 rounded-full bg-emeraldDeep text-white shadow-xl shadow-emeraldDeep/30 flex items-center justify-center active:scale-95 transition"
             >
-              <i class="fa-solid fa-qrcode text-lg"></i>
+              <i class="fa-solid fa-qrcode text-xl"></i>
             </button>
           </section>
 
@@ -581,32 +576,32 @@
 
               <div
                 id="qr-reader"
-                class="w-full overflow-hidden rounded-2xl bg-emeraldDeep hero-circle-bg min-h-[250px] flex flex-col items-center justify-center text-emerald-100 text-xs gap-2"
+                class="w-full overflow-hidden rounded-2xl bg-emeraldDeep hero-circle-bg min-h-[250px] flex flex-col items-center justify-center text-emerald-100 text-xs gap-2 shadow-inner"
               >
-                <i class="fa-solid fa-camera text-3xl text-mustardSoft"></i>
-                <span>Kamera siap dipindai</span>
+                <i class="fa-solid fa-camera text-4xl text-mustardSoft"></i>
+                <span class="font-medium mt-1">Kamera siap dipindai</span>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <button
                   id="btnStartScan"
                   onclick="startQrScanner('quick')"
-                  class="py-3.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white font-bold text-xs shadow-md shadow-emeraldDeep/20"
+                  class="py-3.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white font-bold text-xs shadow-md shadow-emeraldDeep/20 transition"
                 >
                   <i class="fa-solid fa-camera mr-1.5"></i>Mulai Kamera
                 </button>
                 <button
                   id="btnStopScan"
                   onclick="stopQrScanner()"
-                  class="py-3.5 rounded-full bg-creamBg hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  class="py-3.5 rounded-full bg-creamBg hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
                 >
                   <i class="fa-solid fa-stop mr-1.5"></i>Hentikan
                 </button>
               </div>
 
-              <div class="pt-3 border-t border-slate-100 space-y-3">
+              <div class="pt-4 border-t border-slate-100 space-y-3">
                 <label
-                  class="block w-full py-3 rounded-2xl border-2 border-dashed border-amberWarm/50 bg-amberWarm/10 text-amberWarm text-xs font-bold cursor-pointer hover:bg-amberWarm/15"
+                  class="block w-full py-3 rounded-2xl border-2 border-dashed border-amberWarm/50 bg-amberWarm/10 text-amberWarm text-xs font-bold cursor-pointer hover:bg-amberWarm/15 transition"
                 >
                   <i class="fa-solid fa-image mr-1.5"></i>Scan QR dari Foto /
                   Galeri
@@ -623,7 +618,7 @@
                     id="manualQrInput"
                     type="text"
                     placeholder="Ketik Kode QR (AST-...)"
-                    class="flex-1 px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
+                    class="flex-1 px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
                   />
                   <button
                     onclick="
@@ -631,7 +626,7 @@
                         document.getElementById('manualQrInput').value,
                       )
                     "
-                    class="px-5 py-3 rounded-2xl bg-emeraldDeep text-white text-xs font-bold"
+                    class="px-6 py-3.5 rounded-2xl bg-emeraldDeep text-white text-xs font-bold hover:bg-emeraldMid transition"
                   >
                     Cari
                   </button>
@@ -640,10 +635,10 @@
             </div>
           </section>
 
-          <!-- 4. FORM TAMBAH / EDIT ASET (Admin Only) -->
+          <!-- 4. FORM TAMBAH / EDIT ASET -->
           <section id="view-form" class="view-section hidden max-w-3xl mx-auto">
             <div
-              class="bg-white rounded-[2rem] shadow-xs border border-slate-100 p-6 md:p-8"
+              class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 md:p-8"
             >
               <div
                 class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100"
@@ -656,7 +651,7 @@
                 </h3>
                 <button
                   onclick="navigate('assets')"
-                  class="px-3.5 py-1.5 rounded-full bg-creamBg text-xs font-bold text-slate-500"
+                  class="px-4 py-2 rounded-full bg-creamBg text-xs font-bold text-slate-500 hover:bg-slate-200 transition"
                 >
                   Batal
                 </button>
@@ -676,12 +671,12 @@
                       id="fKodeQr"
                       type="text"
                       placeholder="AST-YYYYMMDD-XXXX"
-                      class="flex-1 px-4 py-2.5 rounded-xl bg-white border border-emeraldDeep/20 text-sm font-mono"
+                      class="flex-1 px-4 py-3 rounded-xl bg-white border border-emeraldDeep/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emeraldDeep"
                     />
                     <button
                       type="button"
                       onclick="openFormQrScanner()"
-                      class="px-4 py-2.5 rounded-xl bg-emeraldDeep text-white text-xs font-bold whitespace-nowrap"
+                      class="px-5 py-3 rounded-xl bg-emeraldDeep text-white text-xs font-bold whitespace-nowrap hover:bg-emeraldMid transition"
                     >
                       <i class="fa-solid fa-qrcode mr-1"></i>Scan
                     </button>
@@ -694,101 +689,101 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Nama Aset *</label
                     >
                     <input
                       id="fNamaAset"
                       type="text"
                       required
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Kategori</label
                     >
                     <select
                       id="fKategori"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     ></select>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Merk / Tipe</label
                     >
                     <input
                       id="fMerkTipe"
                       type="text"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Nomor Seri</label
                     >
                     <input
                       id="fNomorSeri"
                       type="text"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Tanggal Beli</label
                     >
                     <input
                       id="fTanggalBeli"
                       type="date"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Harga Perolehan (Rp)</label
                     >
                     <input
                       id="fHarga"
                       type="number"
                       min="0"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Lokasi</label
                     >
                     <select
                       id="fLokasi"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     ></select>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >PIC Penanggung Jawab</label
                     >
                     <input
                       id="fPic"
                       type="text"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Kondisi</label
                     >
                     <select
                       id="fKondisi"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     ></select>
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1"
+                    <label class="block text-xs font-bold text-slate-600 mb-1.5"
                       >Status</label
                     >
                     <select
                       id="fStatus"
-                      class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                      class="w-full px-4 py-3.5 rounded-2xl bg-creamBg text-sm font-medium"
                     ></select>
                   </div>
                 </div>
@@ -797,22 +792,22 @@
                   <div
                     class="p-4 rounded-2xl bg-creamBg border border-slate-200/70"
                   >
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5"
+                    <label class="block text-xs font-bold text-slate-700 mb-2"
                       ><i class="fa-solid fa-camera text-emeraldDeep mr-1.5"></i
-                      >Foto Aset</label
+                      >Foto Fisik Aset</label
                     >
                     <input
                       id="fFoto"
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      class="text-xs w-full"
+                      class="text-xs w-full file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white file:text-emeraldDeep hover:file:bg-slate-50 cursor-pointer"
                     />
                   </div>
                   <div
                     class="p-4 rounded-2xl bg-creamBg border border-slate-200/70"
                   >
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5"
+                    <label class="block text-xs font-bold text-slate-700 mb-2"
                       ><i class="fa-solid fa-file-pdf text-amberWarm mr-1.5"></i
                       >Dokumen Pendukung</label
                     >
@@ -820,33 +815,33 @@
                       id="fDokumen"
                       type="file"
                       accept=".pdf,image/*"
-                      class="text-xs w-full"
+                      class="text-xs w-full file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-white file:text-amberWarm hover:file:bg-slate-50 cursor-pointer"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1"
+                  <label class="block text-xs font-bold text-slate-600 mb-1.5"
                     >Catatan</label
                   >
                   <textarea
                     id="fCatatan"
-                    rows="2"
-                    class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium"
+                    rows="3"
+                    class="w-full px-4 py-3 rounded-2xl bg-creamBg text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emeraldDeep focus:outline-none"
                   ></textarea>
                 </div>
 
-                <div class="flex justify-end gap-3 pt-3">
+                <div class="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
                     onclick="navigate('assets')"
-                    class="px-6 py-3.5 rounded-full bg-creamBg text-slate-700 text-xs font-bold"
+                    class="px-6 py-3.5 rounded-full bg-creamBg text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    class="px-8 py-3.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white text-xs font-bold shadow-lg shadow-emeraldDeep/20"
+                    class="px-8 py-3.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white text-xs font-bold shadow-lg shadow-emeraldDeep/20 transition transform hover:-translate-y-0.5"
                   >
                     SIMPAN ASET
                   </button>
@@ -857,76 +852,76 @@
         </main>
       </div>
 
-      <!-- MOBILE BOTTOM NAVIGATION BAR (Persis gaya ikon minimalis + lingkaran hijau aktif pada gambar referensi) -->
+      <!-- MOBILE BOTTOM NAVIGATION BAR -->
       <nav
-        class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white rounded-t-3xl h-18 px-4 flex items-center justify-around shadow-[0_-6px_24px_rgba(0,0,0,0.06)]"
+        class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white rounded-t-3xl h-20 px-4 flex items-center justify-around shadow-[0_-6px_24px_rgba(0,0,0,0.08)]"
       >
         <button
           data-nav="dashboard"
           onclick="navigate('dashboard')"
-          class="admin-only nav-mobile w-11 h-11 rounded-full flex items-center justify-center text-slate-400 transition"
+          class="admin-only nav-mobile w-12 h-12 rounded-full flex items-center justify-center text-slate-400 transition"
         >
-          <i class="fa-solid fa-house text-base"></i>
+          <i class="fa-solid fa-house text-lg"></i>
         </button>
         <button
           data-nav="assets"
           onclick="navigate('assets')"
-          class="nav-mobile w-11 h-11 rounded-full flex items-center justify-center text-slate-400 transition"
+          class="nav-mobile w-12 h-12 rounded-full flex items-center justify-center text-slate-400 transition"
         >
-          <i class="fa-solid fa-magnifying-glass text-base"></i>
+          <i class="fa-solid fa-magnifying-glass text-lg"></i>
         </button>
         <button
           data-nav="scan"
           onclick="navigate('scan')"
-          class="nav-mobile w-11 h-11 rounded-full flex items-center justify-center text-slate-400 transition"
+          class="nav-mobile w-12 h-12 rounded-full flex items-center justify-center text-slate-400 transition"
         >
-          <i class="fa-solid fa-qrcode text-base"></i>
+          <i class="fa-solid fa-qrcode text-lg"></i>
         </button>
         <button
           data-nav="form"
           onclick="openAddAssetForm()"
-          class="admin-only nav-mobile w-11 h-11 rounded-full flex items-center justify-center text-slate-400 transition"
+          class="admin-only nav-mobile w-12 h-12 rounded-full flex items-center justify-center text-slate-400 transition"
         >
-          <i class="fa-solid fa-plus text-base"></i>
+          <i class="fa-solid fa-plus text-lg"></i>
         </button>
       </nav>
     </div>
 
-    <!-- ==================== MODAL DETAIL & STOCK OPNAME (Meniru layar kiri pada gambar referensi!) ==================== -->
+    <!-- ==================== MODAL DETAIL & STOCK OPNAME ==================== -->
     <div
       id="detailModal"
-      class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end md:items-center justify-center p-0 md:p-4"
+      class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
     >
       <div
         class="bg-white w-full md:max-w-lg max-h-[94vh] overflow-y-auto rounded-t-[2.25rem] md:rounded-[2.25rem] shadow-2xl overflow-hidden"
       >
-        <!-- TOP HERO SECTION (Emerald Green Hero seperti layar kiri referensi) -->
+        <!-- TOP HERO SECTION -->
         <div
           class="bg-emeraldDeep hero-circle-bg text-white p-6 pb-10 relative"
         >
-          <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center justify-between mb-4">
             <button
               onclick="closeModal('detailModal')"
-              class="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white"
+              class="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition"
             >
               <i class="fa-solid fa-chevron-left text-sm"></i>
             </button>
             <span
               id="dKodeQr"
-              class="px-3 py-1 rounded-full bg-white/15 font-mono text-xs font-bold tracking-wide"
+              class="px-3.5 py-1.5 rounded-full bg-white/15 font-mono text-[11px] font-bold tracking-widest shadow-inner"
               >-</span
             >
-            <div class="flex gap-1.5">
+            <div class="flex gap-2">
               <button
                 onclick="editFromDetail()"
-                class="admin-only w-9 h-9 rounded-full bg-amberWarm text-white flex items-center justify-center text-xs shadow"
+                class="admin-only w-9 h-9 rounded-full bg-amberWarm text-white flex items-center justify-center text-xs shadow-md hover:scale-105 transition"
                 title="Edit"
               >
                 <i class="fa-solid fa-pen"></i>
               </button>
               <button
                 onclick="deleteFromDetail()"
-                class="admin-only w-9 h-9 rounded-full bg-red-500 text-white flex items-center justify-center text-xs shadow"
+                class="admin-only w-9 h-9 rounded-full bg-red-500 text-white flex items-center justify-center text-xs shadow-md hover:scale-105 transition"
                 title="Hapus"
               >
                 <i class="fa-solid fa-trash"></i>
@@ -934,119 +929,112 @@
             </div>
           </div>
 
-          <!-- Foto Aset atau Ikon Besar di Tengah -->
-          <div class="flex justify-center items-center my-2">
+          <div class="flex justify-center items-center my-3">
             <img
               id="dFotoImg"
               src=""
               alt="Foto Aset"
-              class="hidden h-48 w-auto max-w-full object-contain rounded-2xl shadow-lg bg-white/10 p-1"
+              class="hidden h-52 w-auto max-w-full object-contain rounded-2xl shadow-xl bg-white/10 p-1"
             />
             <div
               id="dNoFotoIcon"
-              class="w-32 h-32 rounded-3xl bg-white/10 flex items-center justify-center text-5xl text-mustardSoft"
+              class="w-32 h-32 rounded-3xl bg-white/10 flex items-center justify-center text-5xl text-mustardSoft shadow-inner"
             >
               <i class="fa-solid fa-box-open"></i>
             </div>
           </div>
 
-          <!-- Indikator titik ala carousel -->
-          <div class="flex justify-center gap-1.5 mt-3">
-            <span class="w-5 h-1.5 rounded-full bg-white"></span>
+          <div class="flex justify-center gap-1.5 mt-4">
+            <span class="w-6 h-1.5 rounded-full bg-white"></span>
             <span class="w-1.5 h-1.5 rounded-full bg-white/40"></span>
             <span class="w-1.5 h-1.5 rounded-full bg-white/40"></span>
           </div>
 
-          <!-- Floating White Circular Action Button (Seperti tombol hati putih melayang di perbatasan) -->
+          <!-- Action Button (QR) -->
           <button
             onclick="openQrLabelFromDetail()"
             title="Lihat & Cetak QR"
-            class="absolute -bottom-6 right-7 w-13 h-13 rounded-full bg-white text-emeraldDeep shadow-xl border border-slate-100 flex items-center justify-center text-lg hover:scale-105 transition"
+            class="absolute -bottom-7 right-7 w-14 h-14 rounded-full bg-white text-emeraldDeep shadow-xl border border-slate-50 flex items-center justify-center text-xl hover:scale-110 transition-transform"
           >
             <i class="fa-solid fa-qrcode"></i>
           </button>
         </div>
 
-        <!-- BOTTOM CONTENT SHEET (White Card seperti bagian bawah layar kiri referensi) -->
-        <div class="p-6 pt-7 space-y-5 bg-white">
+        <!-- BOTTOM CONTENT SHEET -->
+        <div class="p-6 pt-8 space-y-6 bg-white relative">
           <div>
             <h3
               id="dNamaAset"
-              class="text-xl font-extrabold text-slate-900 leading-snug"
+              class="text-2xl font-extrabold text-slate-900 leading-tight pr-16"
             >
               -
             </h3>
-            <div
-              id="dHargaSub"
-              class="text-base font-bold text-slate-500 mt-0.5"
-            >
+            <div id="dHargaSub" class="text-sm font-bold text-slate-400 mt-1">
               -
             </div>
 
-            <!-- Indikator Titik Status (Meniru 3 titik warna kuning/oranye/hijau di referensi) -->
-            <div class="flex items-center gap-2.5 mt-3">
+            <div class="flex items-center gap-2.5 mt-3.5">
               <span
-                class="w-4 h-4 rounded-full bg-mustardSoft inline-block"
+                class="w-4 h-4 rounded-full bg-mustardSoft inline-block shadow-sm"
               ></span>
               <span
-                class="w-4 h-4 rounded-full bg-amberWarm inline-block"
+                class="w-4 h-4 rounded-full bg-amberWarm inline-block shadow-sm"
               ></span>
               <span
-                class="w-4 h-4 rounded-full border-4 border-emeraldDeep bg-white inline-block"
+                class="w-4 h-4 rounded-full border-4 border-emeraldDeep bg-white inline-block shadow-sm"
               ></span>
-              <span id="dBadgeWrap" class="ml-1"></span>
+              <span id="dBadgeWrap" class="ml-1.5"></span>
             </div>
           </div>
 
-          <!-- Spesifikasi Ringkas -->
+          <!-- Spesifikasi -->
           <div
             id="dSpecs"
-            class="grid grid-cols-2 gap-3 text-xs bg-creamBg p-4 rounded-2xl text-slate-600"
+            class="grid grid-cols-2 gap-4 text-xs bg-creamBg p-5 rounded-3xl text-slate-600 border border-slate-100"
           ></div>
 
-          <!-- Form Cepat Stock Opname -->
+          <!-- Form Stock Opname -->
           <form
             id="opnameForm"
-            class="p-4 rounded-2xl bg-emeraldDeep/5 border border-emeraldDeep/15 space-y-3"
+            class="p-5 rounded-3xl bg-emeraldDeep/5 border border-emeraldDeep/15 space-y-3.5"
           >
             <div
-              class="text-xs font-extrabold text-emeraldDeep uppercase tracking-wider"
+              class="text-xs font-extrabold text-emeraldDeep uppercase tracking-wider mb-1"
             >
-              Audit / Stock Opname Hari Ini
+              <i class="fa-solid fa-clipboard-check mr-1.5"></i>Audit Hari Ini
             </div>
-            <div class="grid grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-2 gap-3">
               <select
                 id="opKondisi"
-                class="px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold"
+                class="px-3.5 py-3 rounded-2xl bg-white border border-emeraldDeep/10 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emeraldDeep"
               ></select>
               <select
                 id="opLokasi"
-                class="px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold"
+                class="px-3.5 py-3 rounded-2xl bg-white border border-emeraldDeep/10 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emeraldDeep"
               ></select>
             </div>
             <input
               id="opCatatan"
               type="text"
               placeholder="Catatan kondisi lapangan..."
-              class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs"
+              class="w-full px-4 py-3 rounded-2xl bg-white border border-emeraldDeep/10 text-xs focus:outline-none focus:ring-1 focus:ring-emeraldDeep"
             />
 
-            <!-- Bottom Pill CTA Bar (Meniru ikon keranjang + tombol pill hijau "BUY NOW" di referensi) -->
-            <div class="flex items-center gap-3 pt-1">
+            <div class="flex items-center gap-3 pt-2">
               <a
                 id="dDocLink"
                 href="#"
                 target="_blank"
                 title="Buka Dokumen"
-                class="hidden w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center shrink-0 hover:bg-slate-50"
+                class="hidden w-12 h-12 rounded-2xl bg-white border border-slate-200 text-amberWarm flex items-center justify-center shrink-0 hover:bg-slate-50 transition shadow-sm"
               >
-                <i class="fa-solid fa-file-lines"></i>
+                <i class="fa-solid fa-file-pdf text-lg"></i>
               </a>
               <button
                 type="submit"
-                class="flex-1 py-3.5 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white font-extrabold text-xs tracking-wider uppercase shadow-lg shadow-emeraldDeep/25 transition"
+                class="flex-1 py-4 rounded-full bg-emeraldDeep hover:bg-emeraldMid text-white font-extrabold text-xs tracking-widest uppercase shadow-lg shadow-emeraldDeep/25 transition transform hover:-translate-y-0.5"
               >
-                SIMPAN AUDIT SEKARANG
+                SIMPAN AUDIT
               </button>
             </div>
           </form>
@@ -1054,11 +1042,11 @@
           <!-- Riwayat -->
           <div>
             <div
-              class="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2"
+              class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-3"
             >
               Riwayat Aktivitas
             </div>
-            <div id="dLogs" class="space-y-2 text-xs"></div>
+            <div id="dLogs" class="space-y-2.5 text-xs"></div>
           </div>
         </div>
       </div>
@@ -1067,49 +1055,49 @@
     <!-- ==================== MODAL LABEL QR ==================== -->
     <div
       id="qrModal"
-      class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+      class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
     >
       <div
-        class="bg-white rounded-[2rem] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl"
+        class="bg-white rounded-[2.5rem] max-w-sm w-full p-7 text-center space-y-5 shadow-2xl"
       >
         <div
           id="print-label-area"
-          class="p-5 border-2 border-emeraldDeep rounded-2xl inline-block bg-white"
+          class="p-5 border-[3px] border-emeraldDeep rounded-3xl inline-block bg-white shadow-sm"
         >
           <div
-            class="text-[10px] font-extrabold uppercase tracking-widest text-emeraldDeep mb-2"
+            class="text-[10px] font-extrabold uppercase tracking-widest text-emeraldDeep mb-3"
           >
             Inventaris Perusahaan
           </div>
           <div id="qrCanvasBox" class="flex justify-center my-2"></div>
           <div
             id="qrLabelCode"
-            class="font-mono font-extrabold text-sm text-slate-900 mt-2"
+            class="font-mono font-extrabold text-sm text-slate-900 mt-3"
           ></div>
           <div
             id="qrLabelName"
-            class="text-xs font-semibold text-slate-600 truncate max-w-[210px] mx-auto"
+            class="text-xs font-bold text-slate-500 truncate max-w-[210px] mx-auto mt-0.5"
           ></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <button
             onclick="downloadQrPng()"
-            class="py-3 rounded-full bg-amberWarm text-white text-xs font-bold shadow"
+            class="py-3.5 rounded-full bg-amberWarm text-white text-xs font-bold shadow-md hover:opacity-90 transition"
           >
-            <i class="fa-solid fa-download mr-1"></i>Download PNG
+            <i class="fa-solid fa-download mr-1.5"></i>Download
           </button>
           <button
             onclick="window.print()"
-            class="py-3 rounded-full bg-emeraldDeep text-white text-xs font-bold shadow"
+            class="py-3.5 rounded-full bg-emeraldDeep text-white text-xs font-bold shadow-md hover:bg-emeraldMid transition"
           >
-            <i class="fa-solid fa-print mr-1"></i>Cetak Label
+            <i class="fa-solid fa-print mr-1.5"></i>Cetak Label
           </button>
         </div>
         <button
           onclick="closeModal('qrModal')"
-          class="text-xs text-slate-400 font-bold"
+          class="text-xs text-slate-400 font-bold hover:text-slate-600 transition"
         >
-          Tutup
+          Tutup Modal
         </button>
       </div>
     </div>
@@ -1118,7 +1106,7 @@
     <script>
       // [WAJIB DIISI] Paste URL Web App Google Apps Script (/exec) Anda di sini!
       const API_URL =
-        "https://script.google.com/macros/s/AKfycbz5RDULGtmX4gdbhddoDq53DJeioRRhWd60KKdinf0dySdYO4MeUI8JlHP83_LlP4HtOA/https://script.google.com/macros/s/AKfycbz5RDULGtmX4gdbhddoDq53DJeioRRhWd60KKdinf0dySdYO4MeUI8JlHP83_LlP4HtOA/exec";
+        "https://script.google.com/macros/s/AKfycbz5RDULGtmX4gdbhddoDq53DJeioRRhWd60KKdinf0dySdYO4MeUI8JlHP83_LlP4HtOA/exec";
 
       const STATE = {
         token: sessionStorage.getItem("aset_token") || "",
@@ -1157,7 +1145,7 @@
         const el = document.getElementById("toast");
         el.textContent = msg;
         el.className =
-          "fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[90%] px-5 py-3.5 rounded-2xl shadow-xl text-sm font-semibold text-white text-center " +
+          "fixed top-4 left-1/2 -translate-x-1/2 z-[110] max-w-md w-[90%] px-5 py-3.5 rounded-2xl shadow-xl text-sm font-semibold text-white text-center transition-all " +
           (type === "error"
             ? "bg-red-600"
             : type === "success"
@@ -1316,7 +1304,6 @@
           b.classList.toggle("text-white", active);
         });
 
-        // Lingkaran hijau aktif pada bottom bar mobile seperti gambar referensi
         document.querySelectorAll(".nav-mobile").forEach((b) => {
           const active = b.dataset.nav === view;
           b.classList.toggle("bg-emeraldDeep", active);
@@ -1359,11 +1346,11 @@
         const l = String(k || "").toLowerCase();
         const cls =
           l === "baik"
-            ? "bg-emeraldDeep/10 text-emeraldDeep"
+            ? "bg-emeraldDeep/15 text-emeraldDeep"
             : l.includes("ringan")
-              ? "bg-amberWarm/15 text-amberWarm"
+              ? "bg-amberWarm/20 text-amberWarm"
               : "bg-red-100 text-red-700";
-        return `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${cls}">${esc(k || "-")}</span>`;
+        return `<span class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${cls}">${esc(k || "-")}</span>`;
       }
 
       function renderDashboard() {
@@ -1376,11 +1363,10 @@
         document.getElementById("kpiRusak").textContent =
           STATE.kpi.rusak + STATE.kpi.lainnya;
 
-        // Showcase horizontal bergaya kartu kuning/amber/emerald seperti gambar referensi
         const showcase = document.getElementById("dashboardShowcase");
         const cardColors = ["bg-mustardSoft", "bg-amberWarm", "bg-emeraldDeep"];
         if (!STATE.assets.length) {
-          showcase.innerHTML = `<div class="w-full bg-white p-6 rounded-3xl text-center text-xs text-slate-400">Belum ada aset terdaftar. Klik "Tambah Aset" untuk memulai.</div>`;
+          showcase.innerHTML = `<div class="w-full bg-white p-6 rounded-3xl text-center text-sm font-medium text-slate-400 border border-slate-100">Belum ada aset terdaftar.</div>`;
         } else {
           showcase.innerHTML = STATE.assets
             .slice(0, 6)
@@ -1388,14 +1374,14 @@
               const bg = cardColors[idx % cardColors.length];
               return `
             <div onclick="openDetailModal('${esc(a.kodeQr)}')" class="w-44 shrink-0 cursor-pointer group">
-              <div class="${bg} hero-circle-bg h-48 rounded-3xl p-4 flex items-center justify-center relative overflow-hidden shadow-sm group-hover:scale-[1.02] transition">
+              <div class="${bg} hero-circle-bg h-48 rounded-[2rem] p-4 flex items-center justify-center relative overflow-hidden shadow-sm group-hover:scale-[1.03] transition-transform">
                 ${
                   a.linkFoto
-                    ? `<img src="${esc(a.linkFoto)}" class="max-h-full max-w-full object-contain rounded-2xl shadow" />`
+                    ? `<img src="${esc(a.linkFoto)}" class="max-h-full max-w-full object-contain rounded-2xl shadow-md" />`
                     : `<i class="fa-solid fa-box-open text-5xl text-white/90"></i>`
                 }
               </div>
-              <div class="mt-2.5 px-1">
+              <div class="mt-3 px-1.5">
                 <div class="font-extrabold text-sm text-slate-900 truncate">${esc(a.namaAset)}</div>
                 <div class="text-xs font-bold text-slate-400 mt-0.5">${fmtRp(a.hargaPerolehan)}</div>
               </div>
@@ -1408,19 +1394,19 @@
         const box = document.getElementById("dashboardLogs");
         if (!STATE.logs.length) {
           box.innerHTML =
-            '<div class="py-6 text-center text-slate-400 text-xs">Belum ada aktivitas tercatat.</div>';
+            '<div class="py-6 text-center text-slate-400 text-xs font-medium">Belum ada aktivitas tercatat.</div>';
           return;
         }
         box.innerHTML = STATE.logs
           .slice(0, 8)
           .map(
             (l) => `
-        <div class="py-3 flex items-start justify-between gap-3">
+        <div class="py-3.5 flex items-start justify-between gap-3">
           <div>
-            <div class="font-bold text-slate-800 text-xs md:text-sm">${esc(l.namaAset)} <span class="font-mono text-emeraldDeep">(${esc(l.kodeQr)})</span></div>
-            <div class="text-[11px] text-slate-500 mt-0.5">${esc(l.jenis)} • ${esc(l.keterangan)} — <b>${esc(l.petugas)}</b></div>
+            <div class="font-bold text-slate-800 text-sm">${esc(l.namaAset)} <span class="font-mono text-emeraldDeep text-[11px] bg-emeraldDeep/10 px-1.5 py-0.5 rounded-md ml-1">${esc(l.kodeQr)}</span></div>
+            <div class="text-[11px] font-medium text-slate-500 mt-1">${esc(l.jenis)} • ${esc(l.keterangan)} — <b>${esc(l.petugas)}</b></div>
           </div>
-          <div class="text-[10px] text-slate-400 whitespace-nowrap">${esc(l.tanggal)}</div>
+          <div class="text-[10px] font-bold text-slate-400 whitespace-nowrap bg-creamBg px-2 py-1 rounded-lg">${esc(l.tanggal.split(" ")[0])}</div>
         </div>
       `,
           )
@@ -1460,8 +1446,8 @@
           `Menampilkan ${list.length} aset`;
 
         if (!list.length) {
-          tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-400">Tidak ada aset yang cocok.</td></tr>`;
-          cards.innerHTML = `<div class="col-span-2 bg-white p-8 rounded-3xl text-center text-slate-400 text-sm">Tidak ada aset yang cocok.</div>`;
+          tbody.innerHTML = `<tr><td colspan="6" class="py-12 text-center text-slate-400 font-medium">Tidak ada aset yang cocok.</td></tr>`;
+          cards.innerHTML = `<div class="col-span-2 bg-white p-8 rounded-3xl text-center text-slate-400 text-sm font-medium border border-slate-100">Tidak ada aset yang cocok.</div>`;
           return;
         }
 
@@ -1470,42 +1456,42 @@
           .map(
             (a) => `
         <tr class="hover:bg-creamBg/60 transition">
-          <td class="py-3.5 px-5">
-            <div class="flex items-center gap-3.5">
+          <td class="py-4 px-5">
+            <div class="flex items-center gap-4">
               ${
                 a.linkFoto
-                  ? `<img src="${esc(a.linkFoto)}" class="w-11 h-11 rounded-2xl object-cover border border-slate-200" />`
-                  : `<div class="w-11 h-11 rounded-2xl bg-emeraldDeep/10 text-emeraldDeep flex items-center justify-center"><i class="fa-solid fa-box"></i></div>`
+                  ? `<img src="${esc(a.linkFoto)}" class="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-sm" />`
+                  : `<div class="w-12 h-12 rounded-2xl bg-emeraldDeep/10 text-emeraldDeep flex items-center justify-center text-lg"><i class="fa-solid fa-box"></i></div>`
               }
               <div>
                 <div class="font-bold text-slate-900">${esc(a.namaAset)}</div>
-                <div class="text-xs font-mono font-semibold text-emeraldDeep">${esc(a.kodeQr)}</div>
+                <div class="text-xs font-mono font-semibold text-emeraldDeep mt-0.5">${esc(a.kodeQr)}</div>
               </div>
             </div>
           </td>
-          <td class="py-3.5 px-4">
+          <td class="py-4 px-4">
             <div class="font-semibold text-slate-700">${esc(a.kategori)}</div>
-            <div class="text-xs text-slate-400">${esc(a.merkTipe || "-")}</div>
+            <div class="text-xs font-medium text-slate-400 mt-0.5">${esc(a.merkTipe || "-")}</div>
           </td>
-          <td class="py-3.5 px-4">
+          <td class="py-4 px-4">
             <div class="font-semibold text-slate-700">${esc(a.lokasi)}</div>
-            <div class="text-xs text-slate-400">PIC: ${esc(a.pic || "-")}</div>
+            <div class="text-[11px] font-medium text-slate-400 mt-0.5">PIC: ${esc(a.pic || "-")}</div>
           </td>
-          <td class="py-3.5 px-4 space-y-1">
+          <td class="py-4 px-4 space-y-1.5">
             <div>${kondisiBadge(a.kondisi)}</div>
-            <div class="text-[11px] text-slate-400">${esc(a.status)}</div>
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">${esc(a.status)}</div>
           </td>
-          ${isAdmin ? `<td class="py-3.5 px-4 font-extrabold text-slate-800 whitespace-nowrap">${fmtRp(a.hargaPerolehan)}</td>` : ""}
-          <td class="py-3.5 px-5 text-right whitespace-nowrap space-x-1.5">
-            <button onclick="openDetailModal('${esc(a.kodeQr)}')" class="px-3.5 py-1.5 rounded-full bg-emeraldDeep text-white text-xs font-bold hover:bg-emeraldMid">Detail</button>
-            <button onclick="showQrModal('${esc(a.kodeQr)}','${esc(a.namaAset)}')" class="w-8 h-8 rounded-full bg-creamBg text-slate-700 hover:bg-amberWarm hover:text-white text-xs"><i class="fa-solid fa-qrcode"></i></button>
+          ${isAdmin ? `<td class="py-4 px-4 font-extrabold text-slate-800 whitespace-nowrap">${fmtRp(a.hargaPerolehan)}</td>` : ""}
+          <td class="py-4 px-5 text-right whitespace-nowrap space-x-1.5">
+            <button onclick="openDetailModal('${esc(a.kodeQr)}')" class="px-4 py-2 rounded-full bg-emeraldDeep text-white text-xs font-bold hover:bg-emeraldMid transition shadow-sm">Detail</button>
+            <button onclick="showQrModal('${esc(a.kodeQr)}','${esc(a.namaAset)}')" class="w-9 h-9 rounded-full bg-creamBg text-slate-700 hover:bg-amberWarm hover:text-white text-xs transition shadow-sm"><i class="fa-solid fa-qrcode"></i></button>
           </td>
         </tr>
       `,
           )
           .join("");
 
-        // 2. Mobile 2-Column Editorial Cards (Meniru kartu kuning & oranye pada gambar referensi)
+        // 2. Mobile Visual Cards
         const bgPalette = [
           "bg-mustardSoft",
           "bg-amberWarm",
@@ -1517,17 +1503,17 @@
             const bg = bgPalette[idx % bgPalette.length];
             return `
           <div onclick="openDetailModal('${esc(a.kodeQr)}')" class="cursor-pointer active:scale-[0.98] transition">
-            <div class="${bg} hero-circle-bg h-44 rounded-3xl p-3.5 flex items-center justify-center relative overflow-hidden shadow-xs">
+            <div class="${bg} hero-circle-bg h-48 rounded-[2rem] p-4 flex items-center justify-center relative overflow-hidden shadow-sm">
               ${
                 a.linkFoto
-                  ? `<img src="${esc(a.linkFoto)}" class="max-h-full max-w-full object-contain rounded-2xl shadow-sm" />`
-                  : `<i class="fa-solid fa-box-open text-4xl text-white/90"></i>`
+                  ? `<img src="${esc(a.linkFoto)}" class="max-h-full max-w-full object-contain rounded-xl shadow-md" />`
+                  : `<i class="fa-solid fa-box-open text-5xl text-white/90"></i>`
               }
-              <span class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-white/90 text-[10px] font-extrabold text-slate-800">${esc(a.kondisi)}</span>
+              <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/95 text-[9px] font-extrabold text-slate-800 uppercase tracking-widest shadow-sm">${esc(a.kondisi)}</span>
             </div>
-            <div class="mt-2 px-1">
+            <div class="mt-2.5 px-1.5">
               <div class="font-extrabold text-sm text-slate-900 truncate">${esc(a.namaAset)}</div>
-              <div class="text-xs font-bold text-slate-400 truncate mt-0.5">
+              <div class="text-[11px] font-bold text-slate-400 truncate mt-0.5">
                 ${isAdmin ? fmtRp(a.hargaPerolehan) : esc(a.lokasi)}
               </div>
             </div>
@@ -1561,9 +1547,7 @@
           );
         } catch (err) {
           showToast(
-            "Kamera gagal dibuka: " +
-              err +
-              ". Gunakan tombol Scan dari Foto/Galeri.",
+            "Kamera gagal dibuka: " + err + ". Gunakan opsi Galeri.",
             "error",
           );
         }
@@ -1610,13 +1594,10 @@
             (a) => a.kodeQr.toLowerCase() === cleanQr.toLowerCase(),
           );
           if (dup) {
-            showToast(
-              `QR "${cleanQr}" sudah terdaftar (${dup.namaAset})!`,
-              "error",
-            );
+            showToast(`QR "${cleanQr}" sudah terdaftar!`, "error");
             openDetailModal(dup.kodeQr);
           } else {
-            showToast("QR belum terdaftar. Lanjutkan isi form.", "success");
+            showToast("QR belum terdaftar. Lanjutkan.", "success");
           }
         } else {
           await lookupQrCode(cleanQr);
@@ -1674,13 +1655,13 @@
           }
 
           document.getElementById("dSpecs").innerHTML = `
-          <div><span class="text-slate-400 block text-[11px]">Kategori</span><b class="text-slate-800">${esc(a.kategori || "-")}</b></div>
-          <div><span class="text-slate-400 block text-[11px]">Merk / Tipe</span><b class="text-slate-800">${esc(a.merkTipe || "-")}</b></div>
-          <div><span class="text-slate-400 block text-[11px]">Lokasi</span><b class="text-slate-800">${esc(a.lokasi || "-")}</b></div>
-          <div><span class="text-slate-400 block text-[11px]">PIC</span><b class="text-slate-800">${esc(a.pic || "-")}</b></div>
-          <div><span class="text-slate-400 block text-[11px]">Nomor Seri</span><b class="text-slate-800">${esc(a.nomorSeri || "-")}</b></div>
-          <div><span class="text-slate-400 block text-[11px]">Audit Terakhir</span><b class="text-slate-800">${esc(a.terakhirAudit || "-")}</b></div>
-          <div class="col-span-2"><span class="text-slate-400 block text-[11px]">Catatan</span><span>${esc(a.catatan || "-")}</span></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Kategori</span><b class="text-slate-800">${esc(a.kategori || "-")}</b></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Merk / Tipe</span><b class="text-slate-800">${esc(a.merkTipe || "-")}</b></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Lokasi</span><b class="text-slate-800">${esc(a.lokasi || "-")}</b></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">PIC</span><b class="text-slate-800">${esc(a.pic || "-")}</b></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Nomor Seri</span><b class="text-slate-800">${esc(a.nomorSeri || "-")}</b></div>
+          <div><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Audit Terakhir</span><b class="text-slate-800">${esc(a.terakhirAudit || "-")}</b></div>
+          <div class="col-span-2"><span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Catatan</span><span class="font-medium">${esc(a.catatan || "-")}</span></div>
         `;
 
           document.getElementById("opKondisi").value = a.kondisi;
@@ -1691,10 +1672,10 @@
             ? res.logs
                 .map(
                   (l) =>
-                    `<div class="p-3 rounded-2xl bg-creamBg"><b>${esc(l.jenis)}</b> • ${esc(l.tanggal)}<br/><span class="text-slate-500">${esc(l.kondisi)} — ${esc(l.keterangan)} (<i>${esc(l.petugas)}</i>)</span></div>`,
+                    `<div class="p-4 rounded-3xl bg-creamBg"><b>${esc(l.jenis)}</b> • ${esc(l.tanggal.split(" ")[0])}<br/><span class="text-slate-500 font-medium text-[11px]">${esc(l.kondisi)} — ${esc(l.keterangan)} (<i>${esc(l.petugas)}</i>)</span></div>`,
                 )
                 .join("")
-            : '<div class="text-slate-400">Belum ada riwayat.</div>';
+            : '<div class="text-slate-400 font-medium">Belum ada riwayat.</div>';
 
           document.getElementById("detailModal").classList.remove("hidden");
         } catch (err) {
